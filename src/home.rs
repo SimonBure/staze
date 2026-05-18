@@ -10,7 +10,7 @@ use ratatui::{
 
 #[derive(Debug, Default)]
 pub struct Home {
-    pub selected: u8,
+    selected: u8,
 }
 
 pub enum HomeAction {

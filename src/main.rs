@@ -6,11 +6,16 @@ use ratatui::{DefaultTerminal, Frame};
 mod home;
 mod session;
 mod stats;
+mod db;
 
+use db::Db;
 use home::{Home, HomeAction};
+use session::{Session, SessionAction}
 
 enum Screen {
     Home(Home),
+    Session(Session),
+    // Stats(Stats)
 }
 
 impl Default for Screen {
@@ -19,10 +24,10 @@ impl Default for Screen {
     }
 }
 
-#[derive(Default)]
 pub struct App {
     exit: bool,
     current_screen: Screen,
+    db: Db,
 }
 
 impl App {
@@ -37,6 +42,7 @@ impl App {
     fn draw(&self, frame: &mut Frame) {
         match &self.current_screen {
             Screen::Home(home) => frame.render_widget(home, frame.area()),
+            Screen::Session(session) => frame.render_widget(session, frame.area()),
         }
     }
 
@@ -47,10 +53,21 @@ impl App {
                     KeyCode::Char('q') => self.exit = true,
                     key => match &mut self.current_screen {
                         Screen::Home(home) => match home.handle_key(key) {
-                            HomeAction::StartSession => { /* TODO: transition */ }
-                            HomeAction::ViewStats => { /* TODO: transition */ }
+                            HomeAction::StartSession => self.current_screen = Screen::Session(Session::default()),
+                            HomeAction::ViewStats => { /* TODO: new view */ }
                             HomeAction::None => {}
                         },
+                        Screen::Session(session) => match session.handle_key(key) {
+                            SessionAction::Stop => {
+                                let (start, duration) = session.stop();
+                                self.db.save_session(start, duration);
+                                
+                                self.current_screen = Screen::Home(Home::default());
+                                // Register duration -> send it to db
+                                // Delete the Session memory?
+                            }
+                            SessionAction::None => {}
+                        }
                     },
                 }
             }
@@ -61,5 +78,10 @@ impl App {
 }
 
 fn main() -> io::Result<()> {
-    ratatui::run(|terminal| App::default().run(terminal))
+    let db = Db::open().expect("failed to open the database");
+    ratatui::run(|terminal| App {
+        exit: false,
+        current_screen: Screen::default(),
+        db}
+    .run(terminal))
 }
