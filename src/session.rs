@@ -14,6 +14,8 @@ use ratatui::{
 #[derive(Debug)]
 pub struct Session {
     pub tag: String,
+    is_tag_default: bool,
+    editing: bool,
     selected: u8,
     start: Instant,
     started_at: u64,
@@ -28,6 +30,8 @@ impl Session {
     pub fn new() -> Self {
         Self {
             tag: "wonderful-thinking-session".to_string(),
+            is_tag_default: true,
+            editing: false,
             selected: 1,
             start: Instant::now(),
             started_at: SystemTime::now()
@@ -44,6 +48,7 @@ impl Session {
 
     pub fn handle_key(&mut self, key: KeyCode) -> SessionAction {
         match key {
+            // Move cursor
             KeyCode::Down => {
                 self.selected = 0;
                 SessionAction::None
@@ -52,9 +57,32 @@ impl Session {
                 self.selected = 1;
                 SessionAction::None
             }
+            // Tag edition
+            KeyCode::Char(c) if self.editing => {
+                self.tag.push(c);
+                SessionAction::None
+            }
+            KeyCode::Backspace if self.editing => {
+                self.tag.pop();
+                SessionAction::None
+            }
+            KeyCode::Esc | KeyCode::Enter if self.editing => {
+                self.editing = false;
+                SessionAction::None
+            }
+            // Exit Session
             KeyCode::Char('q') | KeyCode::Esc => SessionAction::Stop,
             KeyCode::Enter => match self.selected {
                 0 => SessionAction::Stop,
+                1 if !self.editing => {
+                    self.editing = true;
+                    // Clear the default placeholder value
+                    if self.is_tag_default {
+                        self.tag.clear();
+                        self.is_tag_default = false;
+                    }
+                    SessionAction::None
+            },
                 _ => SessionAction::None,
             },
             _ => SessionAction::None,
@@ -98,10 +126,16 @@ impl Widget for &Session {
             .centered()
             .render(timer_area, buf);
 
+        let tag_label = if self.editing {
+            format!(" < {}_ > ", self.tag)
+        } else {
+            format!(" < {} > ", self.tag)
+        };
+
         let tag_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(vec![
             " [ ".into(),
-            self.tag.clone().set_style(tag_style),
+            tag_label.set_style(tag_style),
             " ] ".into(),
         ]))
         .centered()
