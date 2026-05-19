@@ -12,11 +12,12 @@ mod db;
 use db::Db;
 use home::{Home, HomeAction};
 use session::{Session, SessionAction};
+use stats::{Stats, StatsAction};
 
 enum Screen {
     Home(Home),
     Session(Session),
-    // Stats(Stats)
+    Stats(Stats)
 }
 
 impl Default for Screen {
@@ -44,6 +45,7 @@ impl App {
         match &self.current_screen {
             Screen::Home(home) => frame.render_widget(home, frame.area()),
             Screen::Session(session) => frame.render_widget(session, frame.area()),
+            Screen::Stats(stats) => frame.render_widget(stats, frame.area()),
         }
     }
 
@@ -66,6 +68,10 @@ impl App {
                                     self.current_screen = Screen::Home(Home::default());
                                 }
                                 SessionAction::None => {}
+                            },
+                            Screen::Stats(stats) => match stats.handle_key(key) {
+                                
+                                StatsAction::None => {}
                             }
                         },
                     }
