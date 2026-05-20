@@ -10,6 +10,8 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget, Chart, Dataset, Axis, GraphType},
 };
 
+use chrono::DateTime;
+
 use crate::db::SessionRecord;
 
 
@@ -17,6 +19,12 @@ fn format_duration(secs: i64) -> String {
     let h = secs / 3600;
     let m = (secs % 3600) / 60;
     format!("{}h {:02}m", h, m)
+}
+
+fn format_timestamp(ts: f64) -> String {
+    DateTime::from_timestamp(ts as i64, 0)
+        .map(|dt| dt.format("%d-%m-%Y").to_string())
+        .unwrap_or_default()
 }
 
 pub struct History {
@@ -125,6 +133,7 @@ impl Widget for &History {
 
         let x_min = data.iter().map(|(x, _)| *x).fold(f64::MAX, f64::min);
         let x_max = data.iter().map(|(x, _)| *x).fold(f64::MIN, f64::max);
+        let x_mid = (x_min + x_max) / 2.0;
         let y_max = data.iter().map(|(_, y)| *y).fold(f64::MIN, f64::max);
 
         let dataset = Dataset::default()
@@ -134,20 +143,21 @@ impl Widget for &History {
             .style(Style::default().fg(Color::Cyan))
             .data(&data);
 
-        let time_label = match self.selected {0 => "a week ago", 1 => "a month ago", _ => "a year ago"};
         let chart = Chart::new(vec![dataset])
             .x_axis(Axis::default()
                 .title("Date")
                 .bounds([x_min, x_max])
-                .labels(vec![time_label.bold(), "today".bold()]))
+                .labels(vec![
+                    format_timestamp(x_min).bold().into(),
+                    format_timestamp(x_mid).bold().into(),
+                    format_timestamp(x_max).bold().into(),
+                    "today".bold(),
+                ]))
             .y_axis(Axis::default()
                 .title("Duration")
                 .bounds([0.0, y_max])
                 .labels(vec!["0".bold(), format_duration((y_max / 2.0) as i64).bold(), format_duration(y_max as i64).bold()]))
             .block(Block::bordered().title(" Timeline "));
-        
         chart.render(graph_area, buf);
-
     }
-    
 }
