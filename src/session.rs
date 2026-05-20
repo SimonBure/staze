@@ -13,8 +13,7 @@ use ratatui::{
 
 #[derive(Debug)]
 pub struct Session {
-    pub label: String,
-    is_label_default: bool,
+    pub label: Option<String>,
     editing: bool,
     selected: u8,
     start: Instant,
@@ -32,8 +31,7 @@ pub enum SessionAction {
 impl Session {
     pub fn new(suggestions: Vec<String>) -> Self {
         Self {
-            label: "no label".to_string(),
-            is_label_default: true,
+            label: None,
             editing: false,
             selected: 1,
             start: Instant::now(),
@@ -41,8 +39,8 @@ impl Session {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
-            suggestions: suggestions,
-            suggestion_state: ListState::default().with_selected(Some(0)),
+            suggestions,
+            suggestion_state: ListState::default(),
         }
     }
 
@@ -58,14 +56,17 @@ impl Session {
 
     pub fn handle_key(&mut self, key: KeyCode) -> SessionAction {
         match key {
-            // Label edition & suggestions navigation reactions
+            // Label edition & suggestions navigation
             KeyCode::Char(c) if self.editing => {
-                self.label.push(c);
-                SessionAction::QueryLabels(self.label.clone())
+                self.label.get_or_insert_with(String::new).push(c);
+                SessionAction::QueryLabels(self.label.as_deref().unwrap_or("").to_string())
             }
             KeyCode::Backspace if self.editing => {
-                self.label.pop();
-                SessionAction::QueryLabels(self.label.clone())
+                if let Some(ref mut l) = self.label {
+                    l.pop();
+                    if l.is_empty() { self.label = None; }
+                }
+                SessionAction::QueryLabels(self.label.as_deref().unwrap_or("").to_string())
             }
             KeyCode::Down if self.editing => {
                 self.suggestion_state.select_next();
@@ -76,13 +77,15 @@ impl Session {
                 SessionAction::None
             }
             KeyCode::Enter if self.editing && self.suggestion_state.selected().is_some() => {
-                // pick the selected suggestion
-                let picked = &self.suggestions[self.suggestion_state.selected().unwrap()];
-                self.label = picked.clone();
+                if let Some(i) = self.suggestion_state.selected() {
+                    if let Some(picked) = self.suggestions.get(i) {
+                        self.label = Some(picked.clone());
+                    }
+                }
                 self.editing = false;
+                self.suggestion_state.select(None);
                 SessionAction::None
             }
-            // Exit label edition mode
             KeyCode::Esc | KeyCode::Enter if self.editing => {
                 self.editing = false;
                 SessionAction::None
@@ -98,37 +101,26 @@ impl Session {
             }
             KeyCode::Enter => match self.selected {
                 0 => SessionAction::Stop,
-                // Label edition mode
                 1 if !self.editing => {
                     self.editing = true;
-                    // Clear the default placeholder value
-                    if self.is_label_default {
-                        self.label.clear();
-                        self.is_label_default = false;
-                    }
-                    SessionAction::QueryLabels(self.label.clone())
-            },
+                    SessionAction::QueryLabels(self.label.as_deref().unwrap_or("").to_string())
+                }
                 _ => SessionAction::None,
             },
-            // Exit Session
             KeyCode::Char('q') | KeyCode::Esc => SessionAction::Stop,
             _ => SessionAction::None,
         }
     }
+
     pub fn stop(&mut self) -> (u64, u64, Option<String>) {
         let duration: u64 = self.start.elapsed().as_secs();
-        let label = if self.is_label_default || self.label.trim().is_empty() {
-            None 
-        } else {
-            Some(self.label.clone())
-        };
-        (self.started_at, duration, label)
+        (self.started_at, duration, self.label.clone())
     }
 }
 
 impl StatefulWidget for &mut Session {
     type State = ListState;
-    
+
     fn render(self, area: Rect, buf: &mut Buffer, _state: &mut ListState) {
         let title = Line::from(" Working hard... ".bold());
         let instructions = Line::from(vec![
@@ -147,25 +139,26 @@ impl StatefulWidget for &mut Session {
 
         let inner = block.inner(area);
         block.render(area, buf);
-        
+
         let [timer_area, label_area, suggestions_area, stop_area] = Layout::vertical([
+            Constraint::Min(0),
             Constraint::Length(3),
+            Constraint::Length(if self.editing && !self.suggestions.is_empty() {
+                self.suggestions.len() as u16 + 2
+            } else { 0 }),
             Constraint::Length(3),
-            Constraint::Length(if self.editing && !self.suggestions.is_empty() { self.suggestions.len() as u16 + 2 } else { 0 }),
-            Constraint::Fill(1),
         ])
         .areas(inner);
 
-        // Timer
         Paragraph::new(self.elapsed_display().bold())
             .centered()
             .render(timer_area, buf);
 
-        // Label
-        let tag_label = if self.editing {
-            format!(" < {}_ > ", self.label)
-        } else {
-            format!(" < {} > ", self.label)
+        let tag_label = match &self.label {
+            Some(l) if self.editing => format!(" < {}_ > ", l),
+            Some(l)              => format!(" < {} > ", l),
+            None if self.editing => " < _ > ".to_string(),
+            None                 => " [ no label ] ".to_string(),
         };
         let label_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(vec![
@@ -176,7 +169,6 @@ impl StatefulWidget for &mut Session {
         .centered()
         .render(label_area, buf);
 
-        // Label suggestions
         if self.editing && !self.suggestions.is_empty() {
             let items: Vec<ListItem> = self.suggestions.iter()
                 .map(|l| ListItem::new(l.as_str()))
