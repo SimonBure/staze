@@ -48,6 +48,7 @@ impl Session {
 
     pub fn update_suggestions(&mut self, suggestions: Vec<String>) {
         self.suggestions = suggestions;
+        self.suggestion_state.select(None);
     }
 
     fn elapsed_display(&self) -> String {
@@ -143,10 +144,10 @@ impl StatefulWidget for &mut Session {
         block.render(area, buf);
         
         let [timer_area, label_area, suggestions_area, stop_area] = Layout::vertical([
-            Constraint::Min(0),
             Constraint::Length(3),
-            Constraint::Length(if self.editing && !self.suggestions.is_empty() { self.suggestions.len() as u16 } else { 0 }),
             Constraint::Length(3),
+            Constraint::Length(if self.editing && !self.suggestions.is_empty() { self.suggestions.len() as u16 + 2 } else { 0 }),
+            Constraint::Fill(1),
         ])
         .areas(inner);
 
