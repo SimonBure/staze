@@ -1,6 +1,9 @@
 use rusqlite::{Connection, Result};
 
-use crate::history::{SessionFilter};
+pub struct SessionFilter {
+    pub since: Option<i64>,
+    pub tag: Option<String>,
+}
 
 pub struct SessionRecord {
     pub started_at: i64,

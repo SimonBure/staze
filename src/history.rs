@@ -1,9 +1,8 @@
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use crossterm::event::KeyCode;
 
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Style, Styled, Stylize},
     symbols::border,
     text::Line,
@@ -19,25 +18,15 @@ fn format_duration(secs: i64) -> String {
     format!("{}h {:02}m", h, m)
 }
 
-pub fn since_days(days: u64) -> i64 {
-    let cutoff = SystemTime::now() - Duration::from_secs(days * 86400);
-    cutoff.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64
-}
-
-pub struct SessionFilter {
-    pub since: Option<i64>,
-    pub tag: Option<String>,
-}
-
 pub struct History {
-    pub sessions: Vec<SessionRecord>,
+    sessions: Vec<SessionRecord>,
     selected: u8,
 }
 
 pub enum HistoryAction {
     None,
     Stop,
-    Query(SessionFilter)
+    Query(u8)
 }
 
 impl History {
@@ -48,23 +37,19 @@ impl History {
         }
     }
 
+    pub fn update(&mut self, sessions: Vec<SessionRecord>) {
+        self.sessions = sessions;
+    }
+
     pub fn handle_key(&mut self, key: KeyCode) -> HistoryAction {
         match key {
             KeyCode::Left => {
-                self.selected = (self.selected - 1).saturating_sub(0);
-                HistoryAction::None
+                self.selected = (self.selected).saturating_sub(1);
+                HistoryAction::Query(self.selected)
             },
             KeyCode::Right => {
                 self.selected = (self.selected + 1).min(2);
-                HistoryAction::None
-            }
-            KeyCode::Enter => {
-                match self.selected {
-                    0 => HistoryAction::Query(SessionFilter { since: Some(since_days(7)), tag: None}),
-                    1 => HistoryAction::Query(SessionFilter { since: Some(since_days(30)), tag: None}),
-                    2 => HistoryAction::Query(SessionFilter { since: Some(since_days(365)), tag: None}),
-                    _ => HistoryAction::None,
-                }
+                HistoryAction::Query(self.selected)
             }
             KeyCode::Char('q') | KeyCode::Esc => HistoryAction::Stop,
             _ => HistoryAction::None,

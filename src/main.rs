@@ -1,5 +1,5 @@
 use std::io;
-use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{DefaultTerminal, Frame};
@@ -9,10 +9,15 @@ mod session;
 mod history;
 mod db;
 
-use db::Db;
+use db::{Db, SessionFilter};
 use home::{Home, HomeAction};
 use session::{Session, SessionAction};
-use history::{History, HistoryAction, SessionFilter, since_days};
+use history::{History, HistoryAction};
+
+fn since_days(days: u64) -> i64 {
+    let cutoff = SystemTime::now() - Duration::from_secs(days * 86400);
+    cutoff.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64
+}
 
 enum Screen {
     Home(Home),
@@ -75,12 +80,12 @@ impl App {
                                 SessionAction::None => {}
                             },
                             Screen::History(hist) => match hist.handle_key(key) {
-                                HistoryAction::Stop => {
-                                    self.current_screen = Screen::Home(Home::default());
-                                },
-                                HistoryAction::Query(filter) => {
+                                HistoryAction::Stop => self.current_screen = Screen::Home(Home::default()),
+                                HistoryAction::Query(selected) => {
+                                    let days = match selected { 0 => 7, 1 => 30, _ => 365 };
+                                    let filter = SessionFilter { since: Some(since_days(days)), tag: None };
                                     let r = self.db.get_sessions(&filter).expect(fail_load_msg);
-                                    hist.sessions = r;
+                                    hist.update(r);
                                 }
                                 HistoryAction::None => {},
                             }
