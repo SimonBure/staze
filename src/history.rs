@@ -69,7 +69,7 @@ impl History {
     }
 }
 
-impl Widget for &History {
+impl Widget for &mut History {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(" Have you worked well? ".bold());
         let instructions = Line::from(vec![
@@ -102,6 +102,7 @@ impl Widget for &History {
                 "   ".into(),
                 " [ Year ] ".set_style(style(2)),
             ]),
+            Line::from(vec![" <no label selected> ".into()]),
             Line::from(vec![
                 "Total Worked: ".into(),
                 format_duration(self.get_total_worked()).bold(),
@@ -123,12 +124,11 @@ impl Widget for &History {
 
         let mut by_day: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
         for s in &self.sessions {
-            let day = (s.started_at / 86400) * 86400;
+            let day = (s.started_at / 86400) * 86400;  // truncate timestamp to midnight UTC
             *by_day.entry(day).or_insert(0) += s.duration_sec;
         }
 
         let bars: Vec<Bar> = by_day.iter()
-            .rev()
             .map(|(&day, &total)| {
                 Bar::default()
                     .value(total as u64)

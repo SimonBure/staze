@@ -8,7 +8,7 @@ use ratatui::{
     style::{Style, Styled, Stylize},
     symbols::border,
     text::Line,
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Block, List, ListItem, ListState, Paragraph, StatefulWidget, Widget},
 };
 
 #[derive(Debug)]
@@ -19,15 +19,18 @@ pub struct Session {
     selected: u8,
     start: Instant,
     started_at: u64,
+    suggestions: Vec<String>,
+    suggestion_state: ListState,
 }
 
 pub enum SessionAction {
     None,
     Stop,
+    QueryLabels(String),
 }
 
 impl Session {
-    pub fn new() -> Self {
+    pub fn new(suggestions: Vec<String>) -> Self {
         Self {
             label: "wonderful-thinking-session".to_string(),
             is_label_default: true,
@@ -38,7 +41,13 @@ impl Session {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
+            suggestions: suggestions,
+            suggestion_state: ListState::default().with_selected(Some(0)),
         }
+    }
+
+    pub fn update_suggestions(&mut self, suggestions: Vec<String>) {
+        self.suggestions = suggestions;
     }
 
     fn elapsed_display(&self) -> String {
@@ -48,7 +57,36 @@ impl Session {
 
     pub fn handle_key(&mut self, key: KeyCode) -> SessionAction {
         match key {
-            // Move cursor
+            // Label edition & suggestions navigation reactions
+            KeyCode::Char(c) if self.editing => {
+                self.label.push(c);
+                SessionAction::QueryLabels(self.label.clone())
+            }
+            KeyCode::Backspace if self.editing => {
+                self.label.pop();
+                SessionAction::QueryLabels(self.label.clone())
+            }
+            KeyCode::Down if self.editing => {
+                self.suggestion_state.select_next();
+                SessionAction::None
+            }
+            KeyCode::Up if self.editing => {
+                self.suggestion_state.select_previous();
+                SessionAction::None
+            }
+            KeyCode::Enter if self.editing && self.suggestion_state.selected().is_some() => {
+                // pick the selected suggestion
+                let picked = &self.suggestions[self.suggestion_state.selected().unwrap()];
+                self.label = picked.clone();
+                self.editing = false;
+                SessionAction::None
+            }
+            // Exit label edition mode
+            KeyCode::Esc | KeyCode::Enter if self.editing => {
+                self.editing = false;
+                SessionAction::None
+            }
+            // Cursor navigation
             KeyCode::Down => {
                 self.selected = 0;
                 SessionAction::None
@@ -57,23 +95,9 @@ impl Session {
                 self.selected = 1;
                 SessionAction::None
             }
-            // Label edition
-            KeyCode::Char(c) if self.editing => {
-                self.label.push(c);
-                SessionAction::None
-            }
-            KeyCode::Backspace if self.editing => {
-                self.label.pop();
-                SessionAction::None
-            }
-            KeyCode::Esc | KeyCode::Enter if self.editing => {
-                self.editing = false;
-                SessionAction::None
-            }
-            // Exit Session
-            KeyCode::Char('q') | KeyCode::Esc => SessionAction::Stop,
             KeyCode::Enter => match self.selected {
                 0 => SessionAction::Stop,
+                // Label edition mode
                 1 if !self.editing => {
                     self.editing = true;
                     // Clear the default placeholder value
@@ -81,23 +105,26 @@ impl Session {
                         self.label.clear();
                         self.is_label_default = false;
                     }
-                    SessionAction::None
+                    SessionAction::QueryLabels(self.label.clone())
             },
                 _ => SessionAction::None,
             },
+            // Exit Session
+            KeyCode::Char('q') | KeyCode::Esc => SessionAction::Stop,
             _ => SessionAction::None,
         }
     }
-
     pub fn stop(&mut self) -> (u64, u64, String) {
         let duration: u64 = self.start.elapsed().as_secs();
         (self.started_at, duration, self.label.clone())
     }
 }
 
-impl Widget for &Session {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(" Tic-tac... ".bold());
+impl StatefulWidget for &mut Session {
+    type State = ListState;
+    
+    fn render(self, area: Rect, buf: &mut Buffer, _state: &mut ListState) {
+        let title = Line::from(" Working hard... ".bold());
         let instructions = Line::from(vec![
             " Navigate ".into(),
             "<Up/Down>".blue().bold(),
@@ -114,24 +141,26 @@ impl Widget for &Session {
 
         let inner = block.inner(area);
         block.render(area, buf);
-
-        let [timer_area, label_area, stop_area] = Layout::vertical([
+        
+        let [timer_area, label_area, suggestions_area, stop_area] = Layout::vertical([
             Constraint::Min(0),
             Constraint::Length(3),
+            Constraint::Length(if self.editing && !self.suggestions.is_empty() { self.suggestions.len() as u16 } else { 0 }),
             Constraint::Length(3),
         ])
         .areas(inner);
 
+        // Timer
         Paragraph::new(self.elapsed_display().bold())
             .centered()
             .render(timer_area, buf);
 
+        // Label
         let tag_label = if self.editing {
             format!(" < {}_ > ", self.label)
         } else {
             format!(" < {} > ", self.label)
         };
-
         let label_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(vec![
             " [ ".into(),
@@ -140,6 +169,17 @@ impl Widget for &Session {
         ]))
         .centered()
         .render(label_area, buf);
+
+        // Label suggestions
+        if self.editing && !self.suggestions.is_empty() {
+            let items: Vec<ListItem> = self.suggestions.iter()
+                .map(|l| ListItem::new(l.as_str()))
+                .collect();
+            let list = List::new(items)
+                .highlight_style(Style::new().reversed())
+                .block(Block::bordered().title(" Suggestions "));
+            StatefulWidget::render(list, suggestions_area, buf, &mut self.suggestion_state);
+        }
 
         let stop_style = if self.selected == 0 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(" [ Stop ] ".set_style(stop_style)))

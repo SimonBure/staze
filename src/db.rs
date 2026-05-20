@@ -38,6 +38,14 @@ impl Db {
         Ok(())
     }
 
+    pub fn get_labels(&self, prefix: &str) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT label FROM sessions WHERE label LIKE ?1 ORDER BY label"
+        )?;
+        let rows = stmt.query_map([format!("{}%", prefix)], |row| row.get(0))?;
+        rows.collect()
+    }
+
     pub fn get_sessions(&self, filter: &SessionFilter) -> Result<Vec<SessionRecord>> {
         let mut query = "SELECT started_at, duration_sec, label FROM sessions WHERE 1=1".to_string();
         if filter.since.is_some() { query.push_str(" AND started_at >= :since"); }

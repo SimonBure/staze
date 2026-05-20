@@ -2,6 +2,7 @@ use std::io;
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use ratatui::widgets::ListState;
 use ratatui::{DefaultTerminal, Frame};
 
 mod home;
@@ -46,16 +47,17 @@ impl App {
         Ok(())
     }
 
-    fn draw(&self, frame: &mut Frame) {
-        match &self.current_screen {
+    fn draw(&mut self, frame: &mut Frame) {
+        match &mut self.current_screen {
             Screen::Home(home) => frame.render_widget(home, frame.area()),
-            Screen::Session(session) => frame.render_widget(session, frame.area()),
-            Screen::History(stats) => frame.render_widget(stats, frame.area()),
+            Screen::Session(session) => frame.render_stateful_widget(session, frame.area(), &mut ListState::default()),
+            Screen::History(history) => frame.render_widget(history, frame.area()),
         }
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
-        let fail_load_msg = "failed to load history";
+        let fail_load_history = "failed to load history";
+        let fail_load_label = "failed to fetch labels";
         if event::poll(Duration::from_millis(500))? {
             match event::read()? {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
@@ -63,15 +65,22 @@ impl App {
                         KeyCode::Char('q') => self.exit = true,
                         key => match &mut self.current_screen {
                             Screen::Home(home) => match home.handle_key(key) {
-                                HomeAction::StartSession => self.current_screen = Screen::Session(Session::new()),
+                                HomeAction::StartSession => self.current_screen = {
+                                    let suggestions = self.db.get_labels("").expect(fail_load_label);
+                                    Screen::Session(Session::new(suggestions))
+                                },
                                 HomeAction::ViewHistory => self.current_screen = {
-                                        let month_filter = SessionFilter { since: Some(since_days(30)), tag: None };
-                                        let r = self.db.get_sessions(&month_filter).expect(fail_load_msg);
-                                        Screen::History(History::new(r))
+                                    let month_filter = SessionFilter { since: Some(since_days(30)), tag: None };
+                                    let r = self.db.get_sessions(&month_filter).expect(fail_load_history);
+                                    Screen::History(History::new(r))
                                 },
                                 HomeAction::None => {}
                             },
                             Screen::Session(session) => match session.handle_key(key) {
+                                SessionAction::QueryLabels(prefix) => {
+                                    let suggestions = self.db.get_labels(&prefix).expect(fail_load_label);
+                                    session.update_suggestions(suggestions);
+                                },
                                 SessionAction::Stop => {
                                     let (start, duration, label) = session.stop();
                                     self.db.save_session(start, duration, label).expect("failed to save session");
@@ -84,7 +93,7 @@ impl App {
                                 HistoryAction::Query(selected) => {
                                     let days = match selected { 0 => 7, 1 => 30, _ => 365 };
                                     let filter = SessionFilter { since: Some(since_days(days)), tag: None };
-                                    let r = self.db.get_sessions(&filter).expect(fail_load_msg);
+                                    let r = self.db.get_sessions(&filter).expect(fail_load_history);
                                     hist.update(r);
                                 }
                                 HistoryAction::None => {},

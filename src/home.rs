@@ -39,7 +39,7 @@ impl Home {
     }
 }
 
-impl Widget for &Home {
+impl Widget for &mut Home {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(" Let's get to work! ".bold());
         let instructions = Line::from(vec![
