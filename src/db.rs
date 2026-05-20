@@ -8,7 +8,7 @@ pub struct SessionFilter {
 pub struct SessionRecord {
     pub started_at: i64,
     pub duration_sec: i64,
-    pub label: String,
+    pub label: Option<String>,
 }
 
 pub struct Db {
@@ -24,13 +24,13 @@ impl Db {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 started_at INTEGER NOT NULL, -- unix timestamp
                 duration_sec INTEGER NOT NULL,
-                label TEXT NOT NULL
+                label TEXT
             );
         ")?;
         Ok( Self { conn } )
     }
     
-    pub fn save_session(&self, started_at: u64, duration_sec: u64, label: String) -> Result<()> {
+    pub fn save_session(&self, started_at: u64, duration_sec: u64, label: Option<String>) -> Result<()> {
         self.conn.execute(
             "INSERT INTO sessions (started_at, duration_sec, label) VALUES (?1, ?2, ?3)",
             (started_at as i64, duration_sec as i64, label),

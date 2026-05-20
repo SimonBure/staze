@@ -32,7 +32,7 @@ pub enum SessionAction {
 impl Session {
     pub fn new(suggestions: Vec<String>) -> Self {
         Self {
-            label: "wonderful-thinking-session".to_string(),
+            label: "no label".to_string(),
             is_label_default: true,
             editing: false,
             selected: 1,
@@ -115,9 +115,14 @@ impl Session {
             _ => SessionAction::None,
         }
     }
-    pub fn stop(&mut self) -> (u64, u64, String) {
+    pub fn stop(&mut self) -> (u64, u64, Option<String>) {
         let duration: u64 = self.start.elapsed().as_secs();
-        (self.started_at, duration, self.label.clone())
+        let label = if self.is_label_default || self.label.trim().is_empty() {
+            None 
+        } else {
+            Some(self.label.clone())
+        };
+        (self.started_at, duration, label)
     }
 }
 

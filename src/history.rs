@@ -29,19 +29,25 @@ fn format_timestamp(ts: i64) -> String {
 pub struct History {
     sessions: Vec<SessionRecord>,
     selected: u8,
+    is_label_selected: bool,
+    label: String,
+    editing: bool,
 }
 
 pub enum HistoryAction {
     None,
     Stop,
-    Query(u8),
+    Query(u8, String),
 }
 
 impl History {
     pub fn new(sessions: Vec<SessionRecord>) -> Self {
         Self {
-            selected: 1,
+            selected: 1,  // default view to month
             sessions,
+            is_label_selected: false,
+            label: "no label selected".to_string(),
+            editing: false,
         }
     }
 
@@ -51,14 +57,25 @@ impl History {
 
     pub fn handle_key(&mut self, key: KeyCode) -> HistoryAction {
         match key {
+            // Navigate between stats views
             KeyCode::Left => {
                 self.selected = self.selected.saturating_sub(1);
-                HistoryAction::Query(self.selected)
+                HistoryAction::Query(self.selected, self.label.clone())
             }
             KeyCode::Right => {
                 self.selected = (self.selected + 1).min(2);
-                HistoryAction::Query(self.selected)
+                HistoryAction::Query(self.selected, self.label.clone())
             }
+            // Navigate between stats & label
+            KeyCode::Down => {
+                self.is_label_selected = true;
+                HistoryAction::None
+            }
+            KeyCode::Up => {
+                self.is_label_selected = false;
+                HistoryAction::None
+            }
+            // Exit
             KeyCode::Char('q') | KeyCode::Esc => HistoryAction::Stop,
             _ => HistoryAction::None,
         }
@@ -71,6 +88,7 @@ impl History {
 
 impl Widget for &mut History {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Main block
         let title = Line::from(" Have you worked well? ".bold());
         let instructions = Line::from(vec![
             " Navigate ".into(),
@@ -93,6 +111,12 @@ impl Widget for &mut History {
         ])
         .areas(inner);
 
+        // Label
+        let tag_label = if self.editing {
+            format!(" < {}_ > ", self.label)
+        } else {
+            format!(" < {} > ", self.label)
+        };
         let style = |i| if self.selected == i { Style::new().reversed() } else { Style::new() };
         let stats_content = vec![
             Line::from(vec![
@@ -102,7 +126,7 @@ impl Widget for &mut History {
                 "   ".into(),
                 " [ Year ] ".set_style(style(2)),
             ]),
-            Line::from(vec![" <no label selected> ".into()]),
+            Line::from(vec![tag_label.into()]),
             Line::from(vec![
                 "Total Worked: ".into(),
                 format_duration(self.get_total_worked()).bold(),

@@ -90,7 +90,7 @@ impl App {
                             },
                             Screen::History(hist) => match hist.handle_key(key) {
                                 HistoryAction::Stop => self.current_screen = Screen::Home(Home::default()),
-                                HistoryAction::Query(selected) => {
+                                HistoryAction::Query(selected, _label) => {
                                     let days = match selected { 0 => 7, 1 => 30, _ => 365 };
                                     let filter = SessionFilter { since: Some(since_days(days)), tag: None };
                                     let r = self.db.get_sessions(&filter).expect(fail_load_history);
