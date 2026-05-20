@@ -6,18 +6,18 @@ use ratatui::{DefaultTerminal, Frame};
 
 mod home;
 mod session;
-mod stats;
+mod history;
 mod db;
 
 use db::Db;
 use home::{Home, HomeAction};
 use session::{Session, SessionAction};
-use stats::{Stats, StatsAction};
+use history::{History, HistoryAction, SessionFilter, since_days};
 
 enum Screen {
     Home(Home),
     Session(Session),
-    Stats(Stats)
+    History(History)
 }
 
 impl Default for Screen {
@@ -45,11 +45,12 @@ impl App {
         match &self.current_screen {
             Screen::Home(home) => frame.render_widget(home, frame.area()),
             Screen::Session(session) => frame.render_widget(session, frame.area()),
-            Screen::Stats(stats) => frame.render_widget(stats, frame.area()),
+            Screen::History(stats) => frame.render_widget(stats, frame.area()),
         }
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
+        let fail_load_msg = "failed to load history";
         if event::poll(Duration::from_millis(500))? {
             match event::read()? {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
@@ -58,7 +59,11 @@ impl App {
                         key => match &mut self.current_screen {
                             Screen::Home(home) => match home.handle_key(key) {
                                 HomeAction::StartSession => self.current_screen = Screen::Session(Session::new()),
-                                HomeAction::ViewStats => { /* TODO: new view */ }
+                                HomeAction::ViewHistory => self.current_screen = {
+                                        let month_filter = SessionFilter { since: Some(since_days(30)), tag: None };
+                                        let r = self.db.get_sessions(&month_filter).expect(fail_load_msg);
+                                        Screen::History(History::new(r))
+                                },
                                 HomeAction::None => {}
                             },
                             Screen::Session(session) => match session.handle_key(key) {
@@ -69,9 +74,15 @@ impl App {
                                 }
                                 SessionAction::None => {}
                             },
-                            Screen::Stats(stats) => match stats.handle_key(key) {
-                                
-                                StatsAction::None => {}
+                            Screen::History(hist) => match hist.handle_key(key) {
+                                HistoryAction::Stop => {
+                                    self.current_screen = Screen::Home(Home::default());
+                                },
+                                HistoryAction::Query(filter) => {
+                                    let r = self.db.get_sessions(&filter).expect(fail_load_msg);
+                                    hist.sessions = r;
+                                }
+                                HistoryAction::None => {},
                             }
                         },
                     }

@@ -16,7 +16,7 @@ pub struct Home {
 pub enum HomeAction {
     None,
     StartSession,
-    ViewStats,
+    ViewHistory,
 }
 
 impl Home {
@@ -32,7 +32,7 @@ impl Home {
             }
             KeyCode::Enter => match self.selected {
                 0 => HomeAction::StartSession,
-                _ => HomeAction::ViewStats,
+                _ => HomeAction::ViewHistory,
             },
             _ => HomeAction::None,
         }
@@ -70,7 +70,7 @@ impl Widget for &Home {
         let content = Line::from(vec![
             " [ Start Session ] ".set_style(start_style),
             "   ".into(),
-            " [ View Stats ] ".set_style(stats_style),
+            " [ View History ] ".set_style(stats_style),
         ]);
 
         Paragraph::new(content)
