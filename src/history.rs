@@ -20,10 +20,17 @@ fn format_duration(secs: i64) -> String {
     format!("{}h {:02}m", h, m)
 }
 
-fn format_timestamp(ts: i64) -> String {
+fn format_date_short(ts: i64) -> String {
     DateTime::from_timestamp(ts, 0)
-        .map(|dt| dt.format("%d-%m-%Y").to_string())
+        .map(|dt| dt.format("%d-%m").to_string())
         .unwrap_or_default()
+}
+
+fn format_month_label(month_key: i64) -> String {
+    let names = ["Jan","Feb","Mar","Apr","May","Jun",
+                 "Jul","Aug","Sep","Oct","Nov","Dec"];
+    let month = (month_key % 100) as usize; // key = YYYY*100+MM (1-indexed)
+    names[month - 1].to_string()
 }
 
 pub struct History {
@@ -116,6 +123,12 @@ impl History {
                 self.is_label_selected = false;
                 HistoryAction::None
             }
+            // Close dropdown without picking (q while open)
+            KeyCode::Char('q') if self.picking_label => {
+                self.picking_label = false;
+                self.suggestion_state.select(None);
+                HistoryAction::None
+            }
             // Exit
             KeyCode::Char('q') | KeyCode::Esc => HistoryAction::Stop,
             _ => HistoryAction::None,
@@ -132,12 +145,21 @@ impl StatefulWidget for &mut History {
 
     fn render(self, area: Rect, buf: &mut Buffer, _state: &mut ListState) {
         let title = Line::from(" Have you worked well? ".bold());
-        let instructions = Line::from(vec![
+        let mut instruction_spans = vec![
             " Navigate ".into(),
             "<Left/Right>".blue().bold(),
-            " Quit ".into(),
+        ];
+        if self.label.is_some() {
+            instruction_spans.extend([
+                " Clear filter ".into(),
+                "<Esc> ".blue().bold(),
+            ]);
+        }
+        instruction_spans.extend([
+            " Back ".into(),
             "<Q> ".blue().bold(),
         ]);
+        let instructions = Line::from(instruction_spans);
 
         let block = Block::bordered()
             .title(title.centered())
@@ -201,24 +223,43 @@ impl StatefulWidget for &mut History {
             return;
         }
 
-        let mut by_day: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
-        for s in &self.sessions {
-            let day = (s.started_at / 86400) * 86400;
-            *by_day.entry(day).or_insert(0) += s.duration_sec;
-        }
+        use chrono::Datelike;
 
-        let bars: Vec<Bar> = by_day.iter()
-            .map(|(&day, &total)| {
-                Bar::default()
-                    .value(total as u64)
-                    .text_value(format_duration(total))
-                    .label(Line::from(format_timestamp(day)))
-            })
-            .collect();
+        let bars: Vec<Bar> = if self.selected == 2 {
+            let mut by_month: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
+            for s in &self.sessions {
+                if let Some(dt) = DateTime::from_timestamp(s.started_at, 0) {
+                    let key = dt.year() as i64 * 100 + dt.month() as i64;
+                    *by_month.entry(key).or_insert(0) += s.duration_sec;
+                }
+            }
+            by_month.iter()
+                .map(|(&key, &total)| {
+                    Bar::default()
+                        .value(total as u64)
+                        .text_value(format_duration(total))
+                        .label(Line::from(format_month_label(key)))
+                })
+                .collect()
+        } else {
+            let mut by_day: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
+            for s in &self.sessions {
+                let day = (s.started_at / 86400) * 86400;
+                *by_day.entry(day).or_insert(0) += s.duration_sec;
+            }
+            by_day.iter()
+                .map(|(&day, &total)| {
+                    Bar::default()
+                        .value(total as u64)
+                        .text_value(format_duration(total))
+                        .label(Line::from(format_date_short(day)))
+                })
+                .collect()
+        };
 
         BarChart::default()
             .block(Block::bordered().title(" Timeline "))
-            .bar_width(11)
+            .bar_width(6)
             .bar_gap(1)
             .data(BarGroup::default().bars(&bars))
             .render(graph_area, buf);

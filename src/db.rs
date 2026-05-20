@@ -40,7 +40,7 @@ impl Db {
 
     pub fn get_labels(&self, prefix: &str) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT label FROM sessions WHERE label LIKE ?1 ORDER BY label"
+            "SELECT DISTINCT label FROM sessions WHERE label IS NOT NULL AND label LIKE ?1 ORDER BY label"
         )?;
         let rows = stmt.query_map([format!("{}%", prefix)], |row| row.get(0))?;
         rows.collect()

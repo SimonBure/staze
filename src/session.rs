@@ -128,8 +128,8 @@ impl StatefulWidget for &mut Session {
             "<Up/Down>".blue().bold(),
             " Confirm ".into(),
             "<Enter>".blue().bold(),
-            " Quit ".into(),
-            "<Q> ".blue().bold(),
+            " Stop ".into(),
+            "<Q/Esc> ".blue().bold(),
         ]);
 
         let block = Block::bordered()
@@ -140,9 +140,10 @@ impl StatefulWidget for &mut Session {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let [timer_area, label_area, suggestions_area, stop_area] = Layout::vertical([
+        let [timer_area, label_area, hint_area, suggestions_area, stop_area] = Layout::vertical([
             Constraint::Min(0),
             Constraint::Length(3),
+            Constraint::Length(1),
             Constraint::Length(if self.editing && !self.suggestions.is_empty() {
                 self.suggestions.len() as u16 + 2
             } else { 0 }),
@@ -150,9 +151,17 @@ impl StatefulWidget for &mut Session {
         ])
         .areas(inner);
 
+        let [_spacer, running_area, timer_display_area] = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ]).areas(timer_area);
+        Paragraph::new(Line::from("● session in progress".green()))
+            .centered()
+            .render(running_area, buf);
         Paragraph::new(self.elapsed_display().bold())
             .centered()
-            .render(timer_area, buf);
+            .render(timer_display_area, buf);
 
         let tag_label = match &self.label {
             Some(l) if self.editing => format!(" < {}_ > ", l),
@@ -168,6 +177,12 @@ impl StatefulWidget for &mut Session {
         ]))
         .centered()
         .render(label_area, buf);
+
+        if self.selected == 1 && !self.editing {
+            Paragraph::new(Line::from("Press Enter to label this session".dark_gray()))
+                .centered()
+                .render(hint_area, buf);
+        }
 
         if self.editing && !self.suggestions.is_empty() {
             let items: Vec<ListItem> = self.suggestions.iter()
