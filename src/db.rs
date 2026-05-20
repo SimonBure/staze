@@ -17,8 +17,8 @@ pub struct Db {
 
 
 impl Db {    
-    pub fn open() -> Result<Self> {
-        let conn = Connection::open("staze.db")?;
+    pub fn open(path: &std::path::Path) -> Result<Self> {
+        let conn = Connection::open(path)?;
         conn.execute_batch("
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

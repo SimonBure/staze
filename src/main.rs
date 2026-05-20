@@ -5,6 +5,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::widgets::ListState;
 use ratatui::{DefaultTerminal, Frame};
 
+mod config;
 mod home;
 mod session;
 mod history;
@@ -112,10 +113,16 @@ impl App {
 }
 
 fn main() -> io::Result<()> {
-    let db = Db::open().expect("failed to open the database");
+    let cfg = config::Config::load();
+    let db_path = cfg.resolved_db_path();
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let db = Db::open(&db_path).expect("failed to open the database");
     ratatui::run(|terminal| App {
         exit: false,
         current_screen: Screen::default(),
-        db}
+        db,
+    }
     .run(terminal))
 }

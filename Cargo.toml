@@ -9,6 +9,8 @@ crossterm = "0.29.0"
 ratatui = "0.30.0"
 rusqlite = "0.39.0"
 chrono = "0.4"
+toml   = "0.8"
+dirs   = "5"
 
 # Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
 [profile.release]
