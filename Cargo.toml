@@ -2,12 +2,17 @@
 name = "staze"
 version = "0.1.0"
 edition = "2024"
+authors = ["Simon Buré"]
+license = "MIT"
+description = "Staze: a TUI to manage your working sessions in your terminal."
+repository = "https://github.com/SimonBure/staze"
+homepage = "https://github.com/SimonBure/staze"
+keywords = ["tui", "cli", "time-tracker", "productivity"]
 
 [dependencies]
-color-eyre = "0.6.3"
 crossterm = "0.29.0"
 ratatui = "0.30.0"
-rusqlite = "0.39.0"
+rusqlite = {version = "0.39.0", features = ["bundled"]}
 chrono = "0.4"
 toml   = "0.8"
 dirs   = "5"
