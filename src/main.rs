@@ -9,6 +9,7 @@ mod config;
 mod home;
 mod session;
 mod history;
+mod tags;
 mod db;
 
 use db::{Db, SessionFilter};
@@ -22,6 +23,7 @@ struct LastSession {
 use home::{Home, HomeAction};
 use session::{Session, SessionAction};
 use history::{History, HistoryAction};
+use tags::{Tags, TagsAction};
 
 fn since_days(days: u64) -> i64 {
     let cutoff = SystemTime::now() - Duration::from_secs(days * 86400);
@@ -31,7 +33,8 @@ fn since_days(days: u64) -> i64 {
 enum Screen {
     Home(Home),
     Session(Session),
-    History(History)
+    History(History),
+    Tags(Tags),
 }
 
 impl Default for Screen {
@@ -61,6 +64,7 @@ impl App {
             Screen::Home(home) => frame.render_widget(home, frame.area()),
             Screen::Session(session) => frame.render_stateful_widget(session, frame.area(), &mut ListState::default()),
             Screen::History(history) => frame.render_stateful_widget(history, frame.area(), &mut ListState::default()),
+            Screen::Tags(tags) => frame.render_stateful_widget(tags, frame.area(), &mut ListState::default()),
         }
     }
 
@@ -70,8 +74,9 @@ impl App {
         if event::poll(Duration::from_millis(500))? {
             match event::read()? {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                    let editing = matches!(&self.current_screen, Screen::Tags(t) if t.is_editing());
                     match key_event.code {
-                        KeyCode::Char('q') => self.exit = true,
+                        KeyCode::Char('q') if !editing => self.exit = true,
                         key => match &mut self.current_screen {
                             Screen::Home(home) => match home.handle_key(key) {
                                 HomeAction::StartSession => {
@@ -102,6 +107,10 @@ impl App {
                                     h.update_suggestions(suggestions);
                                     self.current_screen = Screen::History(h);
                                 }
+                                HomeAction::ViewTags => {
+                                    let tags = self.db.get_all_labels_with_counts().expect("failed to load tags");
+                                    self.current_screen = Screen::Tags(Tags::new(tags));
+                                }
                                 HomeAction::None => {}
                             },
                             Screen::Session(session) => match session.handle_key(key) {
@@ -126,6 +135,20 @@ impl App {
                                     hist.update(r);
                                 }
                                 HistoryAction::None => {},
+                            },
+                            Screen::Tags(tags) => match tags.handle_key(key) {
+                                TagsAction::Stop => self.current_screen = Screen::Home(Home::default()),
+                                TagsAction::Delete(label) => {
+                                    self.db.delete_label(&label).expect("failed to delete label");
+                                    let updated = self.db.get_all_labels_with_counts().expect("failed to reload tags");
+                                    tags.update(updated);
+                                }
+                                TagsAction::Rename { old, new } => {
+                                    self.db.rename_label(&old, &new).expect("failed to rename label");
+                                    let updated = self.db.get_all_labels_with_counts().expect("failed to reload tags");
+                                    tags.update(updated);
+                                }
+                                TagsAction::None => {}
                             }
                         },
                     }

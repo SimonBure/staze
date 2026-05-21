@@ -140,7 +140,9 @@ impl StatefulWidget for &mut Session {
             " Confirm ".into(),
             "<Enter>".blue().bold(),
             " Stop ".into(),
-            "<Q/Esc> ".blue().bold(),
+            "<Esc> ".blue().bold(),
+            " Quit ".into(),
+            "<Q> ".blue().bold(),
         ]);
 
         let block = Block::bordered()

@@ -18,6 +18,7 @@ pub enum HomeAction {
     None,
     StartSession,
     ViewHistory,
+    ViewTags,
     UndoLastSession,
     ResumeLastSession,
 }
@@ -32,16 +33,17 @@ impl Home {
     pub fn handle_key(&mut self, key: KeyCode) -> HomeAction {
         match key {
             KeyCode::Left => {
-                self.selected = 0;
+                self.selected = self.selected.saturating_sub(1);
                 HomeAction::None
             }
             KeyCode::Right => {
-                self.selected = 1;
+                self.selected = (self.selected + 1).min(2);
                 HomeAction::None
             }
             KeyCode::Enter => match self.selected {
                 0 => HomeAction::StartSession,
-                _ => HomeAction::ViewHistory,
+                1 => HomeAction::ViewHistory,
+                _ => HomeAction::ViewTags,
             },
             KeyCode::Char('u') | KeyCode::Char('U') if self.can_undo => HomeAction::UndoLastSession,
             KeyCode::Char('r') | KeyCode::Char('R') if self.can_undo => HomeAction::ResumeLastSession,
@@ -67,21 +69,16 @@ impl Widget for &mut Home {
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
 
-        let start_style = if self.selected == 0 {
-            Style::new().reversed()
-        } else {
-            Style::new()
-        };
-        let stats_style = if self.selected == 1 {
-            Style::new().reversed()
-        } else {
-            Style::new()
-        };
+        let start_style = if self.selected == 0 { Style::new().reversed() } else { Style::new() };
+        let stats_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
+        let tags_style  = if self.selected == 2 { Style::new().reversed() } else { Style::new() };
 
         let buttons = Line::from(vec![
             " [ Start Session ] ".set_style(start_style),
             "   ".into(),
             " [ View History ] ".set_style(stats_style),
+            "   ".into(),
+            " [ Manage Tags ] ".set_style(tags_style),
         ]);
 
         let mut lines = vec![buttons];

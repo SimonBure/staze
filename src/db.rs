@@ -43,6 +43,28 @@ impl Db {
         Ok(())
     }
 
+    pub fn get_all_labels_with_counts(&self) -> Result<Vec<(String, usize)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT label, COUNT(*) FROM sessions WHERE label IS NOT NULL GROUP BY label ORDER BY label"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let label: String = row.get(0)?;
+            let count: i64 = row.get(1)?;
+            Ok((label, count as usize))
+        })?;
+        rows.collect()
+    }
+
+    pub fn rename_label(&self, old: &str, new: &str) -> Result<()> {
+        self.conn.execute("UPDATE sessions SET label = ?1 WHERE label = ?2", [new, old])?;
+        Ok(())
+    }
+
+    pub fn delete_label(&self, label: &str) -> Result<()> {
+        self.conn.execute("UPDATE sessions SET label = NULL WHERE label = ?1", [label])?;
+        Ok(())
+    }
+
     pub fn get_labels(&self, prefix: &str) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
             "SELECT DISTINCT label FROM sessions WHERE label IS NOT NULL AND label LIKE ?1 ORDER BY label"

@@ -36,7 +36,7 @@ fn format_month_label(month_key: i64) -> String {
 pub struct History {
     sessions: Vec<SessionRecord>,
     selected: u8,
-    is_label_selected: bool,
+    is_cursor_on_label: bool,
     picking_label: bool,
     label: Option<String>,
     suggestions: Vec<String>,
@@ -54,7 +54,7 @@ impl History {
         Self {
             selected: 1,
             sessions,
-            is_label_selected: false,
+            is_cursor_on_label: false,
             picking_label: false,
             label: None,
             suggestions: vec![],
@@ -74,7 +74,7 @@ impl History {
     pub fn handle_key(&mut self, key: KeyCode) -> HistoryAction {
         match key {
             // Open suggestions dropdown
-            KeyCode::Enter if self.is_label_selected && !self.picking_label => {
+            KeyCode::Enter if self.is_cursor_on_label && !self.picking_label => {
                 self.picking_label = true;
                 HistoryAction::None
             }
@@ -97,8 +97,8 @@ impl History {
                 self.suggestion_state.select(None);
                 HistoryAction::Query(self.selected, self.label.clone())
             }
-            // Cancel — close without selecting, clear filter
-            KeyCode::Esc if self.picking_label => {
+            // Clear label filter
+            KeyCode::Char('c') if self.label.is_some() => {
                 self.picking_label = false;
                 self.label = None;
                 self.suggestion_state.select(None);
@@ -115,11 +115,11 @@ impl History {
             }
             // Row navigation
             KeyCode::Down => {
-                self.is_label_selected = true;
+                self.is_cursor_on_label = true;
                 HistoryAction::None
             }
             KeyCode::Up => {
-                self.is_label_selected = false;
+                self.is_cursor_on_label = false;
                 HistoryAction::None
             }
             // Close dropdown without picking (q while open)
@@ -151,11 +151,13 @@ impl StatefulWidget for &mut History {
         if self.label.is_some() {
             instruction_spans.extend([
                 " Clear filter ".into(),
-                "<Esc> ".blue().bold(),
+                "<C> ".blue().bold(),
             ]);
         }
         instruction_spans.extend([
             " Back ".into(),
+            "<Esc> ".blue().bold(),
+            " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
         let instructions = Line::from(instruction_spans);
@@ -177,8 +179,8 @@ impl StatefulWidget for &mut History {
         ])
         .areas(inner);
 
-        let style = |i| if self.selected == i && !self.is_label_selected { Style::new().reversed() } else { Style::new() };
-        let label_style = if self.is_label_selected { Style::new().reversed() } else { Style::new() };
+        let style = |i| if self.selected == i && !self.is_cursor_on_label { Style::new().reversed() } else { Style::new() };
+        let label_style = if self.is_cursor_on_label { Style::new().reversed() } else { Style::new() };
         let tag_label = match &self.label {
             Some(l) => format!(" < {} > ", l),
             None    => " [ all labels ] ".to_string(),
