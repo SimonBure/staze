@@ -11,12 +11,21 @@ use ratatui::{
 #[derive(Debug, Default)]
 pub struct Home {
     selected: u8,
+    can_undo: bool,
 }
 
 pub enum HomeAction {
     None,
     StartSession,
     ViewHistory,
+    UndoLastSession,
+    ResumeLastSession,
+}
+
+impl Home {
+    pub fn new(can_undo: bool) -> Self {
+        Self { selected: 0, can_undo }
+    }
 }
 
 impl Home {
@@ -34,6 +43,8 @@ impl Home {
                 0 => HomeAction::StartSession,
                 _ => HomeAction::ViewHistory,
             },
+            KeyCode::Char('u') | KeyCode::Char('U') if self.can_undo => HomeAction::UndoLastSession,
+            KeyCode::Char('r') | KeyCode::Char('R') if self.can_undo => HomeAction::ResumeLastSession,
             _ => HomeAction::None,
         }
     }
@@ -67,13 +78,17 @@ impl Widget for &mut Home {
             Style::new()
         };
 
-        let content = Line::from(vec![
+        let buttons = Line::from(vec![
             " [ Start Session ] ".set_style(start_style),
             "   ".into(),
             " [ View History ] ".set_style(stats_style),
         ]);
 
-        Paragraph::new(content)
+        let mut lines = vec![buttons];
+        if self.can_undo {
+            lines.push(Line::from("Press U to undo  ·  Press R to resume").centered().dark_gray());
+        }
+        Paragraph::new(lines)
             .centered()
             .block(block)
             .render(area, buf);

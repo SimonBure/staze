@@ -1,4 +1,4 @@
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crossterm::event::KeyCode;
 
@@ -39,6 +39,18 @@ impl Session {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
+            suggestions,
+            suggestion_state: ListState::default(),
+        }
+    }
+
+    pub fn resume(started_at: u64, elapsed_secs: u64, label: Option<String>, suggestions: Vec<String>) -> Self {
+        Self {
+            label,
+            editing: false,
+            selected: 1,
+            start: Instant::now() - Duration::from_secs(elapsed_secs),
+            started_at,
             suggestions,
             suggestion_state: ListState::default(),
         }

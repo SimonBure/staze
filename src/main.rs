@@ -12,6 +12,13 @@ mod history;
 mod db;
 
 use db::{Db, SessionFilter};
+
+struct LastSession {
+    id: i64,
+    started_at: u64,
+    duration_sec: u64,
+    label: Option<String>,
+}
 use home::{Home, HomeAction};
 use session::{Session, SessionAction};
 use history::{History, HistoryAction};
@@ -37,6 +44,7 @@ pub struct App {
     exit: bool,
     current_screen: Screen,
     db: Db,
+    last_session: Option<LastSession>,
 }
 
 impl App {
@@ -66,9 +74,25 @@ impl App {
                         KeyCode::Char('q') => self.exit = true,
                         key => match &mut self.current_screen {
                             Screen::Home(home) => match home.handle_key(key) {
-                                HomeAction::StartSession => self.current_screen = {
+                                HomeAction::StartSession => {
+                                    self.last_session = None;
                                     let suggestions = self.db.get_labels("").expect(fail_load_label);
-                                    Screen::Session(Session::new(suggestions))
+                                    self.current_screen = Screen::Session(Session::new(suggestions));
+                                },
+                                HomeAction::UndoLastSession => {
+                                    if let Some(ls) = self.last_session.take() {
+                                        self.db.delete_session(ls.id).expect("failed to undo session");
+                                    }
+                                    self.current_screen = Screen::Home(Home::new(false));
+                                },
+                                HomeAction::ResumeLastSession => {
+                                    if let Some(ls) = self.last_session.take() {
+                                        self.db.delete_session(ls.id).expect("failed to delete session for resume");
+                                        let suggestions = self.db.get_labels("").expect(fail_load_label);
+                                        self.current_screen = Screen::Session(
+                                            Session::resume(ls.started_at, ls.duration_sec, ls.label, suggestions)
+                                        );
+                                    }
                                 },
                                 HomeAction::ViewHistory => {
                                     let month_filter = SessionFilter { since: Some(since_days(30)), tag: None };
@@ -86,9 +110,10 @@ impl App {
                                     session.update_suggestions(suggestions);
                                 },
                                 SessionAction::Stop => {
-                                    let (start, duration, label) = session.stop();
-                                    self.db.save_session(start, duration, label).expect("failed to save session");
-                                    self.current_screen = Screen::Home(Home::default());
+                                    let (started_at, duration_sec, label) = session.stop();
+                                    let id = self.db.save_session(started_at, duration_sec, label.clone()).expect("failed to save session");
+                                    self.last_session = Some(LastSession { id, started_at, duration_sec, label });
+                                    self.current_screen = Screen::Home(Home::new(true));
                                 }
                                 SessionAction::None => {}
                             },
@@ -123,6 +148,7 @@ fn main() -> io::Result<()> {
         exit: false,
         current_screen: Screen::default(),
         db,
+        last_session: None,
     }
     .run(terminal))
 }

@@ -27,3 +27,5 @@ target
 
 # Local database
 *.db
+
+CLAUDE.md

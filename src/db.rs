@@ -30,11 +30,16 @@ impl Db {
         Ok( Self { conn } )
     }
     
-    pub fn save_session(&self, started_at: u64, duration_sec: u64, label: Option<String>) -> Result<()> {
+    pub fn save_session(&self, started_at: u64, duration_sec: u64, label: Option<String>) -> Result<i64> {
         self.conn.execute(
             "INSERT INTO sessions (started_at, duration_sec, label) VALUES (?1, ?2, ?3)",
             (started_at as i64, duration_sec as i64, label),
         )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn delete_session(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM sessions WHERE id = ?1", [id])?;
         Ok(())
     }
 
