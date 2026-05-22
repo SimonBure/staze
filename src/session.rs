@@ -10,6 +10,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, List, ListItem, ListState, Paragraph, StatefulWidget, Widget},
 };
+use tui_big_text::{BigText, PixelSize};
 
 #[derive(Debug)]
 pub struct Session {
@@ -153,29 +154,36 @@ impl StatefulWidget for &mut Session {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let [timer_area, label_area, hint_area, suggestions_area, stop_area] = Layout::vertical([
-            Constraint::Min(0),
-            Constraint::Length(3),
-            Constraint::Length(1),
+        // Layout definition
+        let [_top, running_area, _gap, timer_display_area, _mid1, label_area, hint_area, suggestions_area, _mid2, stop_area, _bottom] = Layout::vertical([
+            Constraint::Fill(1),  // top filler
+            Constraint::Length(1),  // "session is running" space 
+            Constraint::Length(1),  // whitespace between timer and runner
+            Constraint::Length(4),  // timer area
+            Constraint::Length(1),   // whitespace between timer and label
+            Constraint::Length(1),  // label area
+            // Suggestion & hint areas
+            Constraint::Length(if self.selected == 1 && !self.editing { 1 } else { 0 }),
             Constraint::Length(if self.editing && !self.suggestions.is_empty() {
                 self.suggestions.len() as u16 + 2
             } else { 0 }),
-            Constraint::Length(3),
-        ])
-        .areas(inner);
-
-        let [_spacer, running_area, timer_display_area] = Layout::vertical([
             Constraint::Fill(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ]).areas(timer_area);
+            Constraint::Length(1),  // Stop area
+            Constraint::Length(1), // fixed whitespace after Stop
+        ]).areas(inner);
+        
+        // Timer
         Paragraph::new(Line::from("● session in progress".green()))
             .centered()
             .render(running_area, buf);
-        Paragraph::new(self.elapsed_display().bold())
+        BigText::builder()
+            .pixel_size(PixelSize::HalfHeight)
+            .lines(vec![Line::from(self.elapsed_display().green().bold())])
             .centered()
+            .build()
             .render(timer_display_area, buf);
 
+        // Label
         let tag_label = match &self.label {
             Some(l) if self.editing => format!(" < {}_ > ", l),
             Some(l)              => format!(" < {} > ", l),
@@ -207,6 +215,7 @@ impl StatefulWidget for &mut Session {
             StatefulWidget::render(list, suggestions_area, buf, &mut self.suggestion_state);
         }
 
+        // Stop
         let stop_style = if self.selected == 0 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(" [ Stop ] ".set_style(stop_style)))
             .centered()

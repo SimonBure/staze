@@ -22,6 +22,7 @@ rusqlite = {version = "0.39.0", features = ["bundled"]}
 chrono = "0.4"
 toml   = "0.8"
 dirs   = "5"
+tui-big-text = "0.8.4"
 
 # Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
 [profile.release]
