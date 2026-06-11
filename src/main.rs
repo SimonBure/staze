@@ -9,7 +9,6 @@ mod config;
 mod home;
 mod session;
 mod history;
-mod tags;
 mod db;
 
 use db::{Db, SessionFilter};
