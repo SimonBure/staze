@@ -85,9 +85,24 @@ pub struct App {
 
 impl App {
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        while !self.exit {           
+        let frame_budget = Duration::from_millis(100);  // 10 fps rendering
+        let mut next_frame = Instant::now();
+        while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events()?;
+            // Staz only animates on Home/Session; on other screens block until
+            // the next key so the app sits at ~0% CPU when idle.
+            let animated = matches!(self.current_screen, Screen::Home(_) | Screen::Session(_));
+            let timeout = if animated {
+                next_frame.saturating_duration_since(Instant::now())
+            } else {
+                Duration::from_secs(3600)
+            };
+            self.handle_events(timeout)?;
+            let now = Instant::now();
+            if now >= next_frame {
+                next_frame += frame_budget;
+                if next_frame < now { next_frame = now + frame_budget; }
+            }
         }
         Ok(())
     }
@@ -113,15 +128,9 @@ impl App {
         }
     }
 
-    fn handle_events(&mut self) -> io::Result<()> {
+    fn handle_events(&mut self, timeout: Duration) -> io::Result<()> {
         let fail_load_history = "failed to load history";
         let fail_load_label = "failed to fetch labels";
-
-        let frame_budget = Duration::from_millis(33);  // 30 fps rendering
-        let mut next_deadline = Instant::now();
-        
-        let now = Instant::now();
-        let timeout = next_deadline.saturating_duration_since(now);
         
         if event::poll(timeout)? {
             match event::read()? {
@@ -210,9 +219,6 @@ impl App {
                 }
                 _ => {}
             }
-        }
-        if Instant::now() >= next_deadline {
-            next_deadline += frame_budget;
         }
         Ok(())
     }
