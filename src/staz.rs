@@ -60,12 +60,9 @@ const WORKING: AnimClip = AnimClip {
 const CELEBRATING: AnimClip = AnimClip {
     frames: &[
         include_str!("../ascii/staz/celebrating/frame1.txt"),
-        // include_str!("../ascii/staz/celebrating/frame2.txt"),
-        // include_str!("../ascii/staz/celebrating/frame3.txt"),
-        // include_str!("../ascii/staz/celebrating/frame4.txt"),
-        // include_str!("../ascii/staz/celebrating/frame5.txt"),
+        include_str!("../ascii/staz/celebrating/frame2.txt"),
     ],
-    frame_ms: 400,
+    frame_ms: 600,
     looping: true,
 };
 
@@ -74,7 +71,11 @@ pub enum Mood {
     Idle,
     Sleeping,
     Working,
+    Celebrating,
 }
+
+/// How long Staz celebrates before settling back to idle.
+const CELEBRATE_FOR: Duration = Duration::from_secs(3);
 
 pub struct Staz {
     mood: Mood,
@@ -97,6 +98,7 @@ impl Staz {
         let t = self.since.elapsed();
         match self.mood {
             Mood::Idle if t > Duration::from_secs(60) => self.set(Mood::Sleeping),
+            Mood::Celebrating if t > CELEBRATE_FOR => self.set(Mood::Idle),
             _ => {}
         }
     }
@@ -106,6 +108,7 @@ impl Staz {
             Mood::Idle => &IDLE,
             Mood::Sleeping => &SLEEPING,
             Mood::Working => &WORKING,
+            Mood::Celebrating => &CELEBRATING,
         }
     }
 

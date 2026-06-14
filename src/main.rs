@@ -47,11 +47,19 @@ fn centered(area: Rect, art: &str) -> Rect {
     Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h }
 }
 
-/// A `Rect` the size of `art`, anchored to the bottom-left of `area`.
+/// A `Rect` the size of `art`, anchored to the bottom-left of `area`, inset by a
+/// little padding so Staz doesn't draw over the screen's border lines.
 fn bottom_left(area: Rect, art: &str) -> Rect {
+    const PAD_LEFT: u16 = 2;
+    const PAD_BOTTOM: u16 = 1;
     let (w, h) = art_size(art);
     let (w, h) = (w.min(area.width), h.min(area.height));
-    Rect { x: area.x, y: area.bottom() - h, width: w, height: h }
+    Rect {
+        x: area.x + PAD_LEFT,
+        y: area.bottom().saturating_sub(h + PAD_BOTTOM),
+        width: w,
+        height: h,
+    }
 }
 
 enum Screen {
@@ -169,7 +177,7 @@ impl App {
                                     let id = self.db.save_session(started_at, duration_sec, label.clone()).expect("failed to save session");
                                     self.last_session = Some(LastSession { id, started_at, duration_sec, label });
                                     self.current_screen = Screen::Home(Home::new(true));
-                                    self.staz.set(Mood::Idle);
+                                    self.staz.set(Mood::Celebrating);
                                 }
                                 SessionAction::None => {}
                             },
