@@ -37,11 +37,10 @@ const IDLE: AnimClip = AnimClip {
 };
 const SLEEPING: AnimClip = AnimClip {
     frames: &[
+        include_str!("../ascii/staz/sleeping/frame0.txt"),
         include_str!("../ascii/staz/sleeping/frame1.txt"),
         include_str!("../ascii/staz/sleeping/frame2.txt"),
         include_str!("../ascii/staz/sleeping/frame3.txt"),
-        include_str!("../ascii/staz/sleeping/frame2.txt"),
-        include_str!("../ascii/staz/sleeping/frame1.txt"),
     ],
     frame_ms: 1000,
     looping: true,
@@ -52,7 +51,6 @@ const WORKING: AnimClip = AnimClip {
         include_str!("../ascii/staz/working/frame2.txt"),
         include_str!("../ascii/staz/working/frame3.txt"),
         include_str!("../ascii/staz/working/frame4.txt"),
-        include_str!("../ascii/staz/working/frame5.txt"),
     ],
     frame_ms: 400,
     looping: true,
