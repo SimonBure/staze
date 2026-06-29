@@ -17,12 +17,25 @@ impl Config {
         Config { db_path }
     }
 
-    pub fn resolved_db_path(&self) -> PathBuf {
+    pub fn resolved_staze_path(&self) -> PathBuf {
         self.db_path.clone().unwrap_or_else(|| {
             dirs::data_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join("staze")
+        })
+    }
+
+    pub fn resolved_db_path(&self) -> PathBuf {
+        self.db_path.clone().unwrap_or_else(|| {
+            self.resolved_staze_path()
                 .join("staze.db")
+        })
+    }    
+    
+    pub fn resolved_csv_path(&self) -> PathBuf {
+        self.db_path.clone().unwrap_or_else(|| {
+            self.resolved_staze_path()
+                .join("sessions.csv")
         })
     }
 }

@@ -47,6 +47,7 @@ pub enum HistoryAction {
     None,
     Stop,
     Query(u8, Option<String>),
+    ExportAllSession,
 }
 
 impl History {
@@ -128,6 +129,9 @@ impl History {
                 self.suggestion_state.select(None);
                 HistoryAction::None
             }
+            KeyCode::Char('e') => {
+                HistoryAction::ExportAllSession
+            }
             // Exit
             KeyCode::Char('q') | KeyCode::Esc => HistoryAction::Stop,
             _ => HistoryAction::None,
@@ -155,6 +159,8 @@ impl StatefulWidget for &mut History {
             ]);
         }
         instruction_spans.extend([
+            " Export (.csv) ".into(),
+            "<E>".blue().bold(),
             " Back ".into(),
             "<Esc> ".blue().bold(),
             " Quit ".into(),

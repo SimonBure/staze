@@ -13,6 +13,7 @@ mod history;
 mod db;
 mod tags;
 mod staz;
+mod export;
 
 use staz::{Mood, Staz};
 
@@ -27,6 +28,8 @@ use home::{Home, HomeAction};
 use session::{Session, SessionAction};
 use history::{History, HistoryAction};
 use tags::{Tags, TagsAction};
+
+use crate::config::Config;
 
 fn since_days(days: u64) -> i64 {
     let cutoff = SystemTime::now() - Duration::from_secs(days * 86400);
@@ -197,6 +200,18 @@ impl App {
                                     let filter = SessionFilter { since: Some(since_days(days)), tag: label };
                                     let r = self.db.get_sessions(&filter).expect(fail_load_history);
                                     hist.update(r);
+                                },
+                                HistoryAction::ExportAllSession => {
+                                    use crate::export::{write_sessions_csv, open_dir};
+                                    
+                                    let cfg = Config::load();
+                                    let csv_path = Config::resolved_csv_path(&cfg);
+                                    let no_filter = SessionFilter{ since: None, tag: None };  // export all Sessions
+                                    let sessions = self.db.get_sessions(&no_filter).expect("failed to load sessions");
+                                    write_sessions_csv(&csv_path, &sessions).expect("failed to write sessions to csv");
+
+                                    let staze_path = Config::resolved_staze_path(&cfg);
+                                    open_dir(&staze_path)?;
                                 }
                                 HistoryAction::None => {},
                             },
