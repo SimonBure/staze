@@ -81,11 +81,11 @@ impl Session {
                 }
                 SessionAction::QueryLabels(self.label.as_deref().unwrap_or("").to_string())
             }
-            KeyCode::Down if self.editing => {
+            KeyCode::Down | KeyCode::Char('j') if self.editing => {
                 self.suggestion_state.select_next();
                 SessionAction::None
             }
-            KeyCode::Up if self.editing => {
+            KeyCode::Up | KeyCode::Char('k') if self.editing => {
                 self.suggestion_state.select_previous();
                 SessionAction::None
             }
@@ -103,11 +103,11 @@ impl Session {
                 SessionAction::None
             }
             // Cursor navigation
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 self.selected = 0;
                 SessionAction::None
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 self.selected = 1;
                 SessionAction::None
             }
@@ -137,7 +137,7 @@ impl StatefulWidget for &mut Session {
         let title = Line::from(" Working hard... ".bold());
         let instructions = Line::from(vec![
             " Navigate ".into(),
-            "<Up/Down>".blue().bold(),
+            "<Up/Down> ; <k/j>".blue().bold(),
             " Confirm ".into(),
             "<Enter>".blue().bold(),
             " Stop ".into(),

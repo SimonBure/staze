@@ -80,11 +80,11 @@ impl History {
                 HistoryAction::None
             }
             // Navigate suggestions
-            KeyCode::Down if self.picking_label => {
+            KeyCode::Down | KeyCode::Char('j') if self.picking_label => {
                 self.suggestion_state.select_next();
                 HistoryAction::None
             }
-            KeyCode::Up if self.picking_label => {
+            KeyCode::Up | KeyCode::Char('k')if self.picking_label => {
                 self.suggestion_state.select_previous();
                 HistoryAction::None
             }
@@ -106,20 +106,20 @@ impl History {
                 HistoryAction::Query(self.selected, None)
             }
             // Period navigation
-            KeyCode::Left => {
+            KeyCode::Left | KeyCode::Char('h')=> {
                 self.selected = self.selected.saturating_sub(1);
                 HistoryAction::Query(self.selected, self.label.clone())
             }
-            KeyCode::Right => {
+            KeyCode::Right | KeyCode::Char('l') => {
                 self.selected = (self.selected + 1).min(2);
                 HistoryAction::Query(self.selected, self.label.clone())
             }
             // Row navigation
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 self.is_cursor_on_label = true;
                 HistoryAction::None
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 self.is_cursor_on_label = false;
                 HistoryAction::None
             }
@@ -150,7 +150,7 @@ impl StatefulWidget for &mut History {
         let title = Line::from(" Have you worked well? ".bold());
         let mut instruction_spans = vec![
             " Navigate ".into(),
-            "<Left/Right>".blue().bold(),
+            "<Left/Right> ; <h/l>".blue().bold(),
         ];
         if self.label.is_some() {
             instruction_spans.extend([

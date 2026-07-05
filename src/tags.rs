@@ -76,11 +76,11 @@ impl Tags {
             }
         } else {
             match key {
-                KeyCode::Up => {
+                KeyCode::Up | KeyCode::Char('k') => {
                     if self.selected > 0 { self.selected -= 1; }
                     TagsAction::None
                 }
-                KeyCode::Down => {
+                KeyCode::Down | KeyCode::Char('j') => {
                     if self.selected + 1 < self.tags.len() { self.selected += 1; }
                     TagsAction::None
                 }
@@ -119,7 +119,7 @@ impl StatefulWidget for &mut Tags {
         } else {
             Line::from(vec![
                 " Navigate ".into(),
-                "<↑↓>".blue().bold(),
+                "<↑↓> ; <k/j>".blue().bold(),
                 "  Rename ".into(),
                 "<Enter>".blue().bold(),
                 "  Delete ".into(),

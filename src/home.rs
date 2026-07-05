@@ -32,11 +32,11 @@ impl Home {
 impl Home {
     pub fn handle_key(&mut self, key: KeyCode) -> HomeAction {
         match key {
-            KeyCode::Left => {
+            KeyCode::Left | KeyCode::Char('h') => {
                 self.selected = self.selected.saturating_sub(1);
                 HomeAction::None
             }
-            KeyCode::Right => {
+            KeyCode::Right | KeyCode::Char('l')=> {
                 self.selected = (self.selected + 1).min(2);
                 HomeAction::None
             }
@@ -57,7 +57,7 @@ impl Widget for &mut Home {
         let title = Line::from(" Let's get to work! ".bold());
         let instructions = Line::from(vec![
             " Navigate ".into(),
-            "<Left/Right>".blue().bold(),
+            "<Left/Right> ; <h/l>".blue().bold(),
             " Select ".into(),
             "<Enter>".blue().bold(),
             " Quit ".into(),
