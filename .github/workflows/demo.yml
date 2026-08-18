@@ -1,0 +1,40 @@
+name: Demo GIF
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - '**[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Build staze
+        run: |
+          cargo build --release --locked
+          echo "$PWD/target/release" >> "$GITHUB_PATH"
+
+      - name: Install vhs
+        uses: charmbracelet/vhs-action@v2
+
+      - name: Render demo.gif
+        run: vhs demo.tape
+
+      - name: Commit demo.gif if changed
+        run: |
+          if git diff --quiet -- demo.gif; then
+            echo "demo.gif unchanged, nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add demo.gif
+          git commit -m "Regenerate demo.gif for ${{ github.ref_name }}"
+          git push origin HEAD:main
