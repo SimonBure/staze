@@ -24,6 +24,14 @@ jobs:
       - name: Install vhs
         uses: charmbracelet/vhs-action@v2
 
+      - name: Seed fixture DB
+        run: |
+          sudo apt-get update && sudo apt-get install -y sqlite3
+          mkdir -p "$HOME/.config/staze"
+          DEMO_DB="$RUNNER_TEMP/demo.db"
+          bash fixtures/seed_demo_db.sh "$DEMO_DB"
+          echo "db_path = \"$DEMO_DB\"" > "$HOME/.config/staze/config.toml"
+
       - name: Render demo.gif
         run: vhs demo.tape
 
