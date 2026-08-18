@@ -14,10 +14,10 @@ use chrono::DateTime;
 use crate::db::SessionRecord;
 
 
-fn format_duration(secs: i64) -> String {
+fn format_duration(secs: i64, hours_width: usize) -> String {
     let h = secs / 3600;
     let m = (secs % 3600) / 60;
-    format!("{}h {:02}m", h, m)
+    format!("{:0width$}h {:02}m", h, m, width = hours_width)
 }
 
 fn format_date_short(ts: i64) -> String {
@@ -192,6 +192,8 @@ impl StatefulWidget for &mut History {
             None    => " [ all labels ] ".to_string(),
         };
 
+        let total_hours_length = (self.get_total_worked() / 3600).to_string().len().max(1);
+
         let stats_content = vec![
             Line::from(vec![
                 " [ Week ] ".set_style(style(0)),
@@ -203,7 +205,7 @@ impl StatefulWidget for &mut History {
             Line::from(vec![tag_label.set_style(label_style)]),
             Line::from(vec![
                 "Total Worked: ".into(),
-                format_duration(self.get_total_worked()).bold(),
+                format_duration(self.get_total_worked(), total_hours_length).bold(),
             ]),
         ];
 
@@ -232,7 +234,7 @@ impl StatefulWidget for &mut History {
 
         use chrono::Datelike;
 
-        let bars: Vec<Bar> = if self.selected == 2 {
+        let totals: Vec<(String, i64)> = if self.selected == 2 {
             let mut by_month: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
             for s in &self.sessions {
                 if let Some(dt) = DateTime::from_timestamp(s.started_at, 0) {
@@ -241,13 +243,9 @@ impl StatefulWidget for &mut History {
                 }
             }
             by_month.iter()
-                .map(|(&key, &total)| {
-                    Bar::default()
-                        .value(total as u64)
-                        .text_value(format_duration(total))
-                        .label(Line::from(format_month_label(key)))
-                })
-                .collect()
+            .map(|(key, total)| {
+                (format_month_label(*key), *total)
+            }).collect()
         } else {
             let mut by_day: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
             for s in &self.sessions {
@@ -255,19 +253,37 @@ impl StatefulWidget for &mut History {
                 *by_day.entry(day).or_insert(0) += s.duration_sec;
             }
             by_day.iter()
-                .map(|(&day, &total)| {
-                    Bar::default()
-                        .value(total as u64)
-                        .text_value(format_duration(total))
-                        .label(Line::from(format_date_short(day)))
-                })
-                .collect()
+            .map(|(day, total)|{
+                (format_date_short(*day), *total)
+            }).collect()
         };
 
+        // Scale the bars based on the maximum value to ensure they fit in the chart area
+        let real_max = totals.iter().map(|(_, total)| total).max().unwrap_or(&0);
+        let ceiling = (*real_max as f64 * 1.1).ceil(); // 10% padding to the maximum value to ensure the tallest bar fits in the chart area
+        let floor = (ceiling / 20.0).floor();
+
+        let max_hours = real_max / 3600;
+        let hours_width = max_hours.to_string().len().max(1);
+
+        let max_text_length = totals.iter()
+        .map(|(_, t)| format_duration(*t, hours_width).len())
+        .max()
+        .unwrap_or(6) as u16;
+        
+        let bars: Vec<Bar> = totals.iter()
+        .map(|(label, t)| {
+            Bar::default()
+            .value((*t as u64).max(floor as u64))
+            .text_value(format_duration(*t, hours_width))
+            .label(Line::from(label.clone()))
+        }).collect();
+        
         BarChart::default()
             .block(Block::bordered().title(" Timeline "))
-            .bar_width(6)
+            .bar_width(max_text_length)
             .bar_gap(1)
+            .max(ceiling as u64)
             .data(BarGroup::default().bars(&bars))
             .render(graph_area, buf);
     }
