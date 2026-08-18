@@ -8,7 +8,6 @@ use std::error::Error;
 use std::fs::File;
 use std::path::Path;
 
-use csv;
 
 use crate::db::SessionRecord;
 
@@ -50,5 +49,5 @@ pub fn open_dir(dir: &Path) -> std::io::Result<()> {
     };
     
     std::process::Command::new(command).arg(dir).spawn()?;
-    return Ok(())
+    Ok(())
 }
