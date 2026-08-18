@@ -165,7 +165,7 @@ impl StatefulWidget for &mut Session {
             // Suggestion & hint areas
             Constraint::Length(if self.selected == 1 && !self.editing { 1 } else { 0 }),
             Constraint::Length(if self.editing && !self.suggestions.is_empty() {
-                self.suggestions.len() as u16 + 2
+                self.suggestions.len().min(5) as u16 + 2
             } else { 0 }),
             Constraint::Fill(1),
             Constraint::Length(1),  // Stop area
@@ -206,13 +206,25 @@ impl StatefulWidget for &mut Session {
         }
 
         if self.editing && !self.suggestions.is_empty() {
+            let box_width = self.suggestions.iter()
+                .map(|l| l.chars().count() as u16)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(4)
+                .clamp(20, suggestions_area.width);
+            let [_left, suggestions_box_area, _right] = Layout::horizontal([
+                Constraint::Fill(1),
+                Constraint::Length(box_width),
+                Constraint::Fill(1),
+            ]).areas(suggestions_area);
+
             let items: Vec<ListItem> = self.suggestions.iter()
                 .map(|l| ListItem::new(l.as_str()))
                 .collect();
             let list = List::new(items)
                 .highlight_style(Style::new().reversed())
                 .block(Block::bordered().title(" Suggestions "));
-            StatefulWidget::render(list, suggestions_area, buf, &mut self.suggestion_state);
+            StatefulWidget::render(list, suggestions_box_area, buf, &mut self.suggestion_state);
         }
 
         // Stop
