@@ -261,7 +261,14 @@ impl StatefulWidget for &mut History {
         // Scale the bars based on the maximum value to ensure they fit in the chart area
         let real_max = totals.iter().map(|(_, total)| total).max().unwrap_or(&0);
         let ceiling = (*real_max as f64 * 1.1).ceil(); // 10% padding to the maximum value to ensure the tallest bar fits in the chart area
-        let floor = (ceiling / 20.0).floor();
+        let inner_height = graph_area.height.saturating_sub(2); // borders
+        let min_rows = 2u64; // enough for bar + text_value line
+        let floor = if inner_height > 0 {
+            (ceiling * min_rows as f64 / inner_height as f64).ceil()
+        } else {
+            0.0
+        };
+
 
         let max_hours = real_max / 3600;
         let hours_width = max_hours.to_string().len().max(1);

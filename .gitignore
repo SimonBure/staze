@@ -28,4 +28,6 @@ target
 # Local database
 *.db
 
+ascii/refs/
+
 CLAUDE.md
