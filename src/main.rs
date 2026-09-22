@@ -14,6 +14,7 @@ mod db;
 mod tags;
 mod label_input;
 mod staz;
+mod starfield;
 mod export;
 
 use staz::{Mood, Staz};

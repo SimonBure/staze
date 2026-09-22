@@ -13,6 +13,7 @@ use ratatui::{
 use tui_big_text::{BigText, PixelSize};
 
 use crate::label_input::{InputEvent, LabelInput};
+use crate::starfield::{Starfield, STAR_COUNT};
 
 #[derive(Debug)]
 pub struct Session {
@@ -21,6 +22,7 @@ pub struct Session {
     start: Instant,
     started_at: u64,
     input: LabelInput,
+    stars: Starfield,
 }
 
 pub enum SessionAction {
@@ -40,6 +42,7 @@ impl Session {
                 .unwrap()
                 .as_secs(),
             input: LabelInput::default(),
+            stars: Starfield::new(STAR_COUNT),
         }
     }
 
@@ -50,6 +53,7 @@ impl Session {
             start: Instant::now() - Duration::from_secs(elapsed_secs),
             started_at,
             input: LabelInput::default(),
+            stars: Starfield::new(STAR_COUNT),
         }
     }
 
@@ -189,5 +193,8 @@ impl StatefulWidget for &mut Session {
         Paragraph::new(Line::from(" [ Stop ] ".set_style(stop_style)))
             .centered()
             .render(stop_area, buf);
+
+        // Last, so stars only fill the cells left blank
+        self.stars.render(inner, buf);
     }
 }
