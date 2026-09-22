@@ -8,16 +8,18 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::appearance::{self, Appearance};
+use crate::appearance;
 use crate::starfield::{put, Rng};
 
 /// Twinkling stars scattered around the galaxy.
 pub const FIELD_STAR_COUNT: usize = 9;
 
 const MAX_RADIUS_X: f32 = 70.0; // cells
-const PARTICLES: usize = 6000;
-/// Average particles per cell, so the look holds at any terminal size.
+/// Particles per cell of the galaxy's ellipse, so it looks equally dense at any size.
 const DENSITY: f32 = 3.0;
+const PARTICLE_BOUNDS: (usize, usize) = (200, 40_000);
+/// Cell height / width: a terminal cell is about twice as tall as it is wide.
+const CELL_ASPECT: f32 = 0.5;
 const SEED: u64 = 0x5747_A2E5;
 
 // Same glyphs as the session starfield: density picks the step, colour carries the finer gradient.
@@ -35,9 +37,20 @@ struct Particle {
 }
 
 /// Slowly rotating spiral galaxy, drawn into the blank cells of an area.
-/// Arms and winding shape it, so it is built from the settings when Home opens.
+/// Particles are rebuilt only when the size or shape settings change.
+#[derive(Default)]
 pub struct Galaxy {
     particles: Vec<Particle>,
+    built_for: Option<ShapeKey>,
+}
+
+/// Everything the particle set depends on: fitted radii and arm settings.
+#[derive(PartialEq, Clone, Copy)]
+struct ShapeKey {
+    rx: u32, // radii in hundredths of a cell
+    ry: u32,
+    arms: u8,
+    winding: u32,
 }
 
 impl std::fmt::Debug for Galaxy {
@@ -46,14 +59,22 @@ impl std::fmt::Debug for Galaxy {
     }
 }
 
+/// Largest ellipse with the galaxy's natural proportions (set by the tilt) that fits `area`.
+fn fit(area: Rect, tilt: f32) -> (f32, f32) {
+    let ratio = CELL_ASPECT * tilt; // ry / rx
+    let rx = (area.width as f32 / 2.0)
+        .min(area.height as f32 / 2.0 / ratio)
+        .min(MAX_RADIUS_X);
+    (rx, rx * ratio)
+}
+
 impl Galaxy {
-    /// The seed is fixed, so the same settings always give the same galaxy.
-    pub fn new() -> Self {
-        let Appearance { arms, winding, .. } = appearance::get();
+    /// The seed is fixed, so the same settings and size always give the same galaxy.
+    fn build(arms: u8, winding: f32, count: usize) -> Vec<Particle> {
         let arms = arms as usize;
         let mut rng = Rng(SEED);
         let gauss = |rng: &mut Rng| (rng.next_f32() + rng.next_f32() + rng.next_f32() - 1.5) / 1.5;
-        let particles = (0..PARTICLES).map(|_| {
+        (0..count).map(|_| {
             let kind = rng.next_f32();
             if kind < 0.22 {
                 // bulge
@@ -69,8 +90,7 @@ impl Galaxy {
                 let a = arm as f32 * TAU / arms as f32 + winding * PI * r + gauss(&mut rng) * spread;
                 Particle { r, a, w: 0.9 * (1.15 - r) + 0.25 }
             }
-        }).collect();
-        Self { particles }
+        }).collect()
     }
 }
 
@@ -80,16 +100,27 @@ fn cell_hash(x: u16, y: u16) -> f32 {
     (h ^ (h >> 16)) as f32 / u32::MAX as f32
 }
 
-impl Widget for &Galaxy {
-    /// Only paints blank cells, so render it after the screen's content.
+impl Widget for &mut Galaxy {
+    /// Centres the galaxy in `area`. Only paints blank cells, so render it after the screen's content.
     fn render(self, area: Rect, buf: &mut Buffer) {
         let (w, h) = (area.width as usize, area.height as usize);
         let cx = (w as f32 - 1.0) / 2.0;
         let cy = (h as f32 - 1.0) / 2.0;
-        let rx = (w as f32 * 0.47).min(MAX_RADIUS_X);
         let settings = appearance::get();
-        let ry = (rx * 0.5 * settings.tilt).min(h as f32 / 2.0 - 0.5);
+        let (rx, ry) = fit(area, settings.tilt);
         if rx < 2.0 || ry < 1.0 { return; }
+
+        let key = ShapeKey {
+            rx: (rx * 100.0) as u32,
+            ry: (ry * 100.0) as u32,
+            arms: settings.arms,
+            winding: (settings.winding * 100.0) as u32,
+        };
+        if self.built_for != Some(key) {
+            let count = (DENSITY * PI * rx * ry) as usize;
+            self.particles = Galaxy::build(settings.arms, settings.winding, count.clamp(PARTICLE_BOUNDS.0, PARTICLE_BOUNDS.1));
+            self.built_for = Some(key);
+        }
 
         // Wall clock, so the rotation carries on across screen changes
         let ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
@@ -98,14 +129,13 @@ impl Widget for &Galaxy {
         let frame = (ms / 100) as u64;
 
         let theme = appearance::theme();
-        let scale = DENSITY * PI * rx * ry / PARTICLES as f32;
         let mut density = vec![0f32; w * h];
         for p in &self.particles {
             let a = p.a - rot;
             let x = (cx + a.cos() * p.r * rx).round();
             let y = (cy + a.sin() * p.r * ry).round();
             if x >= 0.0 && y >= 0.0 && (x as usize) < w && (y as usize) < h {
-                density[y as usize * w + x as usize] += p.w * scale;
+                density[y as usize * w + x as usize] += p.w;
             }
         }
 

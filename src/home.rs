@@ -35,7 +35,7 @@ impl Home {
         Self {
             selected: 0,
             can_undo,
-            galaxy: Galaxy::new(),
+            galaxy: Galaxy::default(),
             stars: Starfield::new(FIELD_STAR_COUNT).without_meteors(),
         }
     }
@@ -108,6 +108,7 @@ impl Widget for &mut Home {
         if self.can_undo {
             lines.push(Line::from("Press U to undo  ·  Press R to resume").centered().dark_gray());
         }
+        let text_rows = lines.len() as u16;
         Paragraph::new(lines)
             .centered()
             .block(block)
@@ -116,7 +117,15 @@ impl Widget for &mut Home {
         // Last, so the sky only fills the cells left blank
         let settings = appearance::get();
         if settings.galaxy {
-            self.galaxy.render(inner, buf);
+            // Centred in the space below the menu, with a margin so it never touches text or borders
+            let (mx, my) = (2, 1);
+            let sky = Rect {
+                x: inner.x + mx,
+                y: inner.y + text_rows + my,
+                width: inner.width.saturating_sub(2 * mx),
+                height: inner.height.saturating_sub(text_rows + 2 * my),
+            };
+            self.galaxy.render(sky, buf);
             if settings.field_stars {
                 self.stars.render(inner, buf);
             }
