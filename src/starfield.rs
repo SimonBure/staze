@@ -1,9 +1,11 @@
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use crate::appearance;
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     widgets::Widget,
 };
 
@@ -17,21 +19,14 @@ const LEVEL: [usize; 6] = [0, 1, 2, 3, 2, 1];
 /// Share of a star's period spent pulsing; the rest it rests (dim or blank).
 const PULSE_SHARE: f32 = 0.6;
 
-const STAR_COLORS: [Color; 4] = [
-    Color::Rgb(44, 51, 82),
-    Color::Rgb(86, 96, 138),
-    Color::Rgb(154, 166, 214),
-    Color::Rgb(242, 243, 255),
-];
-const WARM_COLORS: [Color; 2] = [Color::Rgb(201, 168, 120), Color::Rgb(255, 212, 154)];
 
 // Shooting stars run on their own clock, independent of the star count:
 // time is cut into slots, and each slot may hold one short streak.
 const METEOR_SLOT_FRAMES: u64 = 50;
 const METEOR_CHANCE: f32 = 0.5;
-const METEOR_HEAD: (char, Color) = ('*', Color::Rgb(223, 230, 255));
-const METEOR_TAIL: (char, Color) = ('\\', Color::Rgb(75, 86, 135));
-const METEOR_TAIL_END: (char, Color) = ('.', Color::Rgb(75, 86, 135));
+const METEOR_HEAD: char = '*';
+const METEOR_TAIL: char = '\\';
+const METEOR_TAIL_END: char = '.';
 
 #[derive(Debug)]
 struct Star {
@@ -129,6 +124,7 @@ impl Widget for &Starfield {
         if area.is_empty() { return; }
         let frame_n = (self.born.elapsed().as_millis() / FRAME_MS) as u64;
         let frame = frame_n as f32;
+        let theme = appearance::theme();
 
         for star in &self.stars {
             let t = (frame / star.period as f32 + star.phase).fract();
@@ -142,8 +138,8 @@ impl Widget for &Starfield {
             let y = (star.y * area.height as f32) as i32;
             let level = LEVEL[step];
             let mut style = Style::new().fg(match level {
-                2 | 3 if star.warm => WARM_COLORS[level - 2],
-                _ => STAR_COLORS[level],
+                2 | 3 if star.warm => theme.warm[level - 2],
+                _ => theme.stars[level],
             });
             if level == 3 { style = style.add_modifier(Modifier::BOLD); }
             put(buf, area, x, y, STAR_CYCLE[step], style);
@@ -151,10 +147,10 @@ impl Widget for &Starfield {
 
         if let Some((x, y, len)) = self.meteor(frame_n, area).filter(|_| self.meteors) {
             for i in 1..=len {
-                let (ch, color) = if i == len { METEOR_TAIL_END } else { METEOR_TAIL };
-                put(buf, area, x + i, y - i, ch, Style::new().fg(color));
+                let ch = if i == len { METEOR_TAIL_END } else { METEOR_TAIL };
+                put(buf, area, x + i, y - i, ch, Style::new().fg(theme.meteor_tail));
             }
-            put(buf, area, x, y, METEOR_HEAD.0, Style::new().fg(METEOR_HEAD.1).add_modifier(Modifier::BOLD));
+            put(buf, area, x, y, METEOR_HEAD, Style::new().fg(theme.meteor_head).add_modifier(Modifier::BOLD));
         }
     }
 }

@@ -2,6 +2,7 @@ use std::io;
 use std::time::{SystemTime, UNIX_EPOCH, Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use ratatui::style::Style;
 use ratatui::widgets::ListState;
 use ratatui::{DefaultTerminal, Frame};
 
@@ -14,6 +15,8 @@ mod tags;
 mod label_input;
 mod starfield;
 mod galaxy;
+mod appearance;
+mod settings;
 mod export;
 
 
@@ -28,6 +31,7 @@ use home::{Home, HomeAction};
 use session::{Session, SessionAction};
 use history::{History, HistoryAction};
 use tags::{Tags, TagsAction};
+use settings::{Settings, SettingsAction};
 
 use crate::config::Config;
 
@@ -41,6 +45,7 @@ enum Screen {
     Session(Session),
     History(History),
     Tags(Tags),
+    Settings(Settings),
 }
 
 impl Default for Screen {
@@ -82,11 +87,14 @@ impl App {
 
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
+        let theme = appearance::theme();
+        frame.buffer_mut().set_style(area, Style::new().bg(theme.bg).fg(theme.fg));
         match &mut self.current_screen {
             Screen::Home(home) => frame.render_widget(home, area),
             Screen::Session(session) => frame.render_stateful_widget(session, area, &mut ListState::default()),
             Screen::History(history) => frame.render_stateful_widget(history, area, &mut ListState::default()),
             Screen::Tags(tags) => frame.render_stateful_widget(tags, area, &mut ListState::default()),
+            Screen::Settings(settings) => frame.render_widget(&*settings, area),
         }
     }
 
@@ -98,7 +106,7 @@ impl App {
             match event::read()? {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
                     let typing = match &self.current_screen {
-                        Screen::Home(_) => false,
+                        Screen::Home(_) | Screen::Settings(_) => false,
                         Screen::Session(s) => s.is_typing(),
                         Screen::History(h) => h.is_typing(),
                         Screen::Tags(t) => t.is_typing(),
@@ -133,6 +141,9 @@ impl App {
                                 HomeAction::ViewTags => {
                                     let tags = self.db.get_all_labels_with_counts().expect("failed to load tags");
                                     self.current_screen = Screen::Tags(Tags::new(tags));
+                                }
+                                HomeAction::ViewSettings => {
+                                    self.current_screen = Screen::Settings(Settings::new());
                                 }
                                 HomeAction::None => {}
                             },
@@ -193,6 +204,17 @@ impl App {
                                 }
                                 TagsAction::None => {}
                             }
+                            Screen::Settings(settings) => match settings.handle_key(key) {
+                                SettingsAction::Stop => self.current_screen = Screen::Home(Home::default()),
+                                SettingsAction::Changed => {
+                                    Config::save_appearance(
+                                        appearance::theme().key,
+                                        appearance::galaxy(),
+                                        appearance::session_stars(),
+                                    ).expect("failed to save settings");
+                                }
+                                SettingsAction::None => {}
+                            }
                         },
                     }
                 }
@@ -205,6 +227,11 @@ impl App {
 
 fn main() -> io::Result<()> {
     let cfg = config::Config::load();
+    appearance::set(
+        cfg.theme.as_deref().and_then(appearance::theme_by_key).unwrap_or(0),
+        cfg.galaxy,
+        cfg.session_stars,
+    );
     let db_path = cfg.resolved_db_path();
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)?;

@@ -68,6 +68,11 @@ Optional config at `~/.config/staze/config.toml`:
 
 ```toml
 db_path = "/custom/path/to/staze.db"
+
+# Written by the Settings screen (Home → Settings)
+theme = "dark-blue"      # dark-blue | dark-red | light-blue | light-red
+galaxy = true            # rotating galaxy on the home screen
+session_stars = true     # twinkling stars and shooting stars during a session
 ```
 
 ## License

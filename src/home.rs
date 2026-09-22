@@ -8,6 +8,7 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
+use crate::appearance;
 use crate::galaxy::{Galaxy, FIELD_STAR_COUNT};
 use crate::starfield::Starfield;
 
@@ -24,6 +25,7 @@ pub enum HomeAction {
     StartSession,
     ViewHistory,
     ViewTags,
+    ViewSettings,
     UndoLastSession,
     ResumeLastSession,
 }
@@ -53,13 +55,14 @@ impl Home {
                 HomeAction::None
             }
             KeyCode::Right | KeyCode::Char('l')=> {
-                self.selected = (self.selected + 1).min(2);
+                self.selected = (self.selected + 1).min(3);
                 HomeAction::None
             }
             KeyCode::Enter => match self.selected {
                 0 => HomeAction::StartSession,
                 1 => HomeAction::ViewHistory,
-                _ => HomeAction::ViewTags,
+                2 => HomeAction::ViewTags,
+                _ => HomeAction::ViewSettings,
             },
             KeyCode::Char('u') | KeyCode::Char('U') if self.can_undo => HomeAction::UndoLastSession,
             KeyCode::Char('r') | KeyCode::Char('R') if self.can_undo => HomeAction::ResumeLastSession,
@@ -88,6 +91,7 @@ impl Widget for &mut Home {
         let start_style = if self.selected == 0 { Style::new().reversed() } else { Style::new() };
         let stats_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
         let tags_style  = if self.selected == 2 { Style::new().reversed() } else { Style::new() };
+        let settings_style = if self.selected == 3 { Style::new().reversed() } else { Style::new() };
 
         let buttons = Line::from(vec![
             " [ Start Session ] ".set_style(start_style),
@@ -95,6 +99,8 @@ impl Widget for &mut Home {
             " [ View History ] ".set_style(stats_style),
             "   ".into(),
             " [ Manage Tags ] ".set_style(tags_style),
+            "   ".into(),
+            " [ Settings ] ".set_style(settings_style),
         ]);
 
         let inner = block.inner(area);
@@ -108,7 +114,9 @@ impl Widget for &mut Home {
             .render(area, buf);
 
         // Last, so the sky only fills the cells left blank
-        self.galaxy.render(inner, buf);
-        self.stars.render(inner, buf);
+        if appearance::galaxy() {
+            self.galaxy.render(inner, buf);
+            self.stars.render(inner, buf);
+        }
     }
 }

@@ -5,10 +5,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     widgets::Widget,
 };
 
+use crate::appearance;
 use crate::starfield::{put, Rng};
 
 /// Twinkling stars scattered around the galaxy.
@@ -26,20 +27,6 @@ const SEED: u64 = 0x5747_A2E5;
 
 // Same glyphs as the session starfield: density picks the step, colour carries the finer gradient.
 const GLYPHS: [char; 3] = ['.', '+', '*'];
-const ARM_COLORS: [Color; 5] = [
-    Color::Rgb(38, 45, 76),
-    Color::Rgb(63, 74, 124),
-    Color::Rgb(104, 120, 184),
-    Color::Rgb(169, 182, 236),
-    Color::Rgb(238, 241, 255),
-];
-const CORE_COLORS: [Color; 5] = [
-    Color::Rgb(107, 90, 82),
-    Color::Rgb(107, 90, 82),
-    Color::Rgb(176, 141, 108),
-    Color::Rgb(232, 193, 144),
-    Color::Rgb(255, 241, 214),
-];
 const CORE_RADIUS_SQ: f32 = 0.045;
 
 /// Sparkle: each cell briefly brightens one step, at its own period (in frames).
@@ -103,6 +90,7 @@ impl Widget for &Galaxy {
         let rot = (ms % TURN_MS) as f32 / TURN_MS as f32 * TAU;
         let frame = (ms / 100) as u64;
 
+        let theme = appearance::theme();
         let scale = DENSITY * PI * rx * ry / PARTICLES as f32;
         let mut density = vec![0f32; w * h];
         for p in particles() {
@@ -130,7 +118,7 @@ impl Widget for &Galaxy {
                 }
 
                 let (dx, dy) = ((x as f32 - cx) / rx, (y as f32 - cy) / ry);
-                let color = if dx * dx + dy * dy < CORE_RADIUS_SQ { CORE_COLORS[level] } else { ARM_COLORS[level] };
+                let color = if dx * dx + dy * dy < CORE_RADIUS_SQ { theme.core[level] } else { theme.arms[level] };
                 let mut style = Style::new().fg(color);
                 if level == 4 { style = style.add_modifier(Modifier::BOLD); }
                 put(buf, area, x as i32, y as i32, GLYPHS[glyph], style);
