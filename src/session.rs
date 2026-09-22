@@ -185,10 +185,10 @@ impl StatefulWidget for &mut Session {
 
         // Label
         let tag_label = match &self.label {
-            Some(l) if self.editing => format!(" < {}_ > ", l),
-            Some(l)              => format!(" < {} > ", l),
-            None if self.editing => " < _ > ".to_string(),
-            None                 => " [ no label ] ".to_string(),
+            Some(l) if self.editing => format!(" {}_ ", l),
+            Some(l)              => format!(" {} ", l),
+            None if self.editing => " _ ".to_string(),
+            None                 => " no label ".to_string(),
         };
         let label_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
         Paragraph::new(Line::from(vec![
