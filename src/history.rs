@@ -6,12 +6,13 @@ use ratatui::{
     style::{Style, Styled, Stylize},
     symbols::border,
     text::Line,
-    widgets::{Bar, BarChart, BarGroup, Block, List, ListItem, ListState, Paragraph, StatefulWidget, Widget},
+    widgets::{Bar, BarChart, BarGroup, Block, ListState, Paragraph, StatefulWidget, Widget},
 };
 
 use chrono::DateTime;
 
 use crate::db::SessionRecord;
+use crate::label_input::{InputEvent, LabelInput};
 
 
 fn format_duration(secs: i64, hours_width: usize) -> String {
@@ -37,16 +38,15 @@ pub struct History {
     sessions: Vec<SessionRecord>,
     selected: u8,
     is_cursor_on_label: bool,
-    picking_label: bool,
     label: Option<String>,
-    suggestions: Vec<String>,
-    suggestion_state: ListState,
+    input: LabelInput,
 }
 
 pub enum HistoryAction {
     None,
     Stop,
     Query(u8, Option<String>),
+    QueryLabels(String),
     ExportAllSession,
 }
 
@@ -56,10 +56,8 @@ impl History {
             selected: 1,
             sessions,
             is_cursor_on_label: false,
-            picking_label: false,
             label: None,
-            suggestions: vec![],
-            suggestion_state: ListState::default(),
+            input: LabelInput::default(),
         }
     }
 
@@ -67,43 +65,49 @@ impl History {
         self.sessions = sessions;
     }
 
+    pub fn is_typing(&self) -> bool {
+        self.input.is_active()
+    }
+
     pub fn update_suggestions(&mut self, suggestions: Vec<String>) {
-        self.suggestions = suggestions;
-        self.suggestion_state.select(None);
+        self.input.update_suggestions(suggestions);
+    }
+
+    fn clear_filter(&mut self) -> HistoryAction {
+        match self.label.take() {
+            Some(_) => HistoryAction::Query(self.selected, None),
+            None => HistoryAction::None,
+        }
     }
 
     pub fn handle_key(&mut self, key: KeyCode) -> HistoryAction {
+        // Label search: the chart only updates once a label is confirmed
+        if self.input.is_active() {
+            return match self.input.handle_key(key) {
+                InputEvent::Query(prefix) => HistoryAction::QueryLabels(prefix),
+                InputEvent::Submit(label) => {
+                    self.label = label;
+                    HistoryAction::Query(self.selected, self.label.clone())
+                }
+                InputEvent::Cancel => self.clear_filter(),
+                InputEvent::None => HistoryAction::None,
+            };
+        }
         match key {
-            // Open suggestions dropdown
-            KeyCode::Enter if self.is_cursor_on_label && !self.picking_label => {
-                self.picking_label = true;
+            // Label search: `/` from anywhere, or Enter on the label row
+            KeyCode::Char('/') => {
+                self.is_cursor_on_label = true;
+                HistoryAction::QueryLabels(self.input.open(None))
+            }
+            KeyCode::Enter if self.is_cursor_on_label => HistoryAction::QueryLabels(self.input.open(None)),
+            // Row navigation
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.is_cursor_on_label = true;
                 HistoryAction::None
             }
-            // Navigate suggestions
-            KeyCode::Down | KeyCode::Char('j') if self.picking_label => {
-                self.suggestion_state.select_next();
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.is_cursor_on_label = false;
                 HistoryAction::None
-            }
-            KeyCode::Up | KeyCode::Char('k')if self.picking_label => {
-                self.suggestion_state.select_previous();
-                HistoryAction::None
-            }
-            // Pick a suggestion
-            KeyCode::Enter if self.picking_label => {
-                if let Some(i) = self.suggestion_state.selected()
-                    && let Some(picked) = self.suggestions.get(i) {
-                        self.label = Some(picked.clone());
-                    }
-                self.picking_label = false;
-                self.suggestion_state.select(None);
-                HistoryAction::Query(self.selected, self.label.clone())
-            }
-            // Clear label filter
-            KeyCode::Char('c') if self.label.is_some() => {
-                self.picking_label = false;
-                self.label = None;
-                self.suggestion_state.select(None);
-                HistoryAction::Query(self.selected, None)
             }
             // Period navigation
             KeyCode::Left | KeyCode::Char('h')=> {
@@ -114,24 +118,10 @@ impl History {
                 self.selected = (self.selected + 1).min(2);
                 HistoryAction::Query(self.selected, self.label.clone())
             }
-            // Row navigation
-            KeyCode::Down | KeyCode::Char('j') => {
-                self.is_cursor_on_label = true;
-                HistoryAction::None
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.is_cursor_on_label = false;
-                HistoryAction::None
-            }
-            // Close dropdown without picking (q while open)
-            KeyCode::Char('q') if self.picking_label => {
-                self.picking_label = false;
-                self.suggestion_state.select(None);
-                HistoryAction::None
-            }
             KeyCode::Char('e') => {
                 HistoryAction::ExportAllSession
             }
+            KeyCode::Esc if self.label.is_some() => self.clear_filter(),
             // Exit
             KeyCode::Char('q') | KeyCode::Esc => HistoryAction::Stop,
             _ => HistoryAction::None,
@@ -148,25 +138,31 @@ impl StatefulWidget for &mut History {
 
     fn render(self, area: Rect, buf: &mut Buffer, _state: &mut ListState) {
         let title = Line::from(" Have you worked well? ".bold());
-        let mut instruction_spans = vec![
-            " Navigate ".into(),
-            "<Left/Right> ; <h/l>".blue().bold(),
-        ];
-        if self.label.is_some() {
+        let instructions = if self.input.is_active() {
+            LabelInput::instructions()
+        } else {
+            let mut instruction_spans = vec![
+                " Navigate ".into(),
+                "<Arrows> ; <h/j/k/l>".blue().bold(),
+                " Search ".into(),
+                "</> ; <Enter>".blue().bold(),
+            ];
+            if self.label.is_some() {
+                instruction_spans.extend([
+                    " Clear filter ".into(),
+                    "<Esc> ".blue().bold(),
+                ]);
+            }
             instruction_spans.extend([
-                " Clear filter ".into(),
-                "<C> ".blue().bold(),
+                " Export (.csv) ".into(),
+                "<E>".blue().bold(),
+                " Back ".into(),
+                "<Esc> ".blue().bold(),
+                " Quit ".into(),
+                "<Q> ".blue().bold(),
             ]);
-        }
-        instruction_spans.extend([
-            " Export (.csv) ".into(),
-            "<E>".blue().bold(),
-            " Back ".into(),
-            "<Esc> ".blue().bold(),
-            " Quit ".into(),
-            "<Q> ".blue().bold(),
-        ]);
-        let instructions = Line::from(instruction_spans);
+            Line::from(instruction_spans)
+        };
 
         let block = Block::bordered()
             .title(title.centered())
@@ -178,19 +174,14 @@ impl StatefulWidget for &mut History {
 
         let [stats_area, suggestions_area, graph_area] = Layout::vertical([
             Constraint::Length(5),
-            Constraint::Length(if self.picking_label && !self.suggestions.is_empty() {
-                self.suggestions.len() as u16 + 2
-            } else { 0 }),
+            Constraint::Length(self.input.dropdown_height()),
             Constraint::Fill(1),
         ])
         .areas(inner);
 
         let style = |i| if self.selected == i && !self.is_cursor_on_label { Style::new().reversed() } else { Style::new() };
         let label_style = if self.is_cursor_on_label { Style::new().reversed() } else { Style::new() };
-        let tag_label = match &self.label {
-            Some(l) => format!(" < {} > ", l),
-            None    => " [ all labels ] ".to_string(),
-        };
+        let tag_label = self.input.display(self.label.as_deref(), " [ all labels ] ");
 
         let total_hours_length = (self.get_total_worked() / 3600).to_string().len().max(1);
 
@@ -214,15 +205,7 @@ impl StatefulWidget for &mut History {
             .block(Block::bordered().title(" Stats "))
             .render(stats_area, buf);
 
-        if self.picking_label && !self.suggestions.is_empty() {
-            let items: Vec<ListItem> = self.suggestions.iter()
-                .map(|l| ListItem::new(l.as_str()))
-                .collect();
-            let list = List::new(items)
-                .highlight_style(Style::new().reversed())
-                .block(Block::bordered().title(" Filter by label "));
-            StatefulWidget::render(list, suggestions_area, buf, &mut self.suggestion_state);
-        }
+        self.input.render_dropdown(suggestions_area, buf, " Filter by label ");
 
         if self.sessions.is_empty() {
             Paragraph::new("No session recorded for this period.")

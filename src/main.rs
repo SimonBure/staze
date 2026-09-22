@@ -12,6 +12,7 @@ mod session;
 mod history;
 mod db;
 mod tags;
+mod label_input;
 mod staz;
 mod export;
 
@@ -138,15 +139,19 @@ impl App {
         if event::poll(timeout)? {
             match event::read()? {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                    let editing = matches!(&self.current_screen, Screen::Tags(t) if t.is_editing());
+                    let typing = match &self.current_screen {
+                        Screen::Home(_) => false,
+                        Screen::Session(s) => s.is_typing(),
+                        Screen::History(h) => h.is_typing(),
+                        Screen::Tags(t) => t.is_typing(),
+                    };
                     match key_event.code {
-                        KeyCode::Char('q') if !editing => self.exit = true,
+                        KeyCode::Char('q') if !typing => self.exit = true,
                         key => match &mut self.current_screen {
                             Screen::Home(home) => match home.handle_key(key) {
                                 HomeAction::StartSession => {
                                     self.last_session = None;
-                                    let suggestions = self.db.get_labels("").expect(fail_load_label);
-                                    self.current_screen = Screen::Session(Session::new(suggestions));
+                                    self.current_screen = Screen::Session(Session::new());
                                     self.staz.set(Mood::Working);
                                 },
                                 HomeAction::UndoLastSession => {
@@ -158,9 +163,8 @@ impl App {
                                 HomeAction::ResumeLastSession => {
                                     if let Some(ls) = self.last_session.take() {
                                         self.db.delete_session(ls.id).expect("failed to delete session for resume");
-                                        let suggestions = self.db.get_labels("").expect(fail_load_label);
                                         self.current_screen = Screen::Session(
-                                            Session::resume(ls.started_at, ls.duration_sec, ls.label, suggestions)
+                                            Session::resume(ls.started_at, ls.duration_sec, ls.label)
                                         );
                                         self.staz.set(Mood::Working);
                                     }
@@ -168,10 +172,7 @@ impl App {
                                 HomeAction::ViewHistory => {
                                     let month_filter = SessionFilter { since: Some(since_days(30)), tag: None };
                                     let r = self.db.get_sessions(&month_filter).expect(fail_load_history);
-                                    let suggestions = self.db.get_labels("").expect(fail_load_label);
-                                    let mut h = History::new(r);
-                                    h.update_suggestions(suggestions);
-                                    self.current_screen = Screen::History(h);
+                                    self.current_screen = Screen::History(History::new(r));
                                 }
                                 HomeAction::ViewTags => {
                                     let tags = self.db.get_all_labels_with_counts().expect("failed to load tags");
@@ -201,6 +202,10 @@ impl App {
                                     let r = self.db.get_sessions(&filter).expect(fail_load_history);
                                     hist.update(r);
                                 },
+                                HistoryAction::QueryLabels(prefix) => {
+                                    let suggestions = self.db.get_labels(&prefix).expect(fail_load_label);
+                                    hist.update_suggestions(suggestions);
+                                },
                                 HistoryAction::ExportAllSession => {
                                     use crate::export::{write_sessions_csv, open_dir};
                                     
@@ -217,6 +222,10 @@ impl App {
                             },
                             Screen::Tags(tags) => match tags.handle_key(key) {
                                 TagsAction::Stop => self.current_screen = Screen::Home(Home::default()),
+                                TagsAction::QueryLabels(prefix) => {
+                                    let suggestions = self.db.get_labels(&prefix).expect(fail_load_label);
+                                    tags.update_suggestions(suggestions);
+                                }
                                 TagsAction::Delete(label) => {
                                     self.db.delete_label(&label).expect("failed to delete label");
                                     let updated = self.db.get_all_labels_with_counts().expect("failed to reload tags");
