@@ -1,7 +1,7 @@
-//! Look-and-feel settings read at render time: the active theme and which skies are shown.
+//! Look-and-feel settings read at render time: the active theme, which skies are shown and how the galaxy looks.
 //! Set by `App` from the config; screens and sky widgets only read them.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::RwLock;
 
 use ratatui::style::Color;
 
@@ -62,30 +62,67 @@ pub const THEMES: [Theme; 4] = [
     },
 ];
 
-static THEME: AtomicUsize = AtomicUsize::new(0);
-static GALAXY: AtomicBool = AtomicBool::new(true);
-static SESSION_STARS: AtomicBool = AtomicBool::new(true);
+/// Everything the Settings screen controls.
+#[derive(Clone, Copy, Debug)]
+pub struct Appearance {
+    pub theme: usize,
+    pub galaxy: bool,
+    pub session_stars: bool,
+    pub arms: u8,
+    pub turn_secs: u32, // one full galaxy rotation
+    pub tilt: f32,      // y squash, on top of the ~0.5 cell aspect ratio
+    pub winding: f32,   // arm angle = arm·2π/arms + winding·π·r
+    pub sparkle: bool,
+    pub field_stars: bool,
+}
+
+const DEFAULT: Appearance = Appearance {
+    theme: 0,
+    galaxy: true,
+    session_stars: true,
+    arms: 2,
+    turn_secs: 240,
+    tilt: 0.55,
+    winding: 1.6,
+    sparkle: true,
+    field_stars: true,
+};
+
+impl Default for Appearance {
+    fn default() -> Self {
+        DEFAULT
+    }
+}
+
+pub const ARMS_RANGE: (u8, u8) = (2, 4);
+pub const TURN_SECS_RANGE: (u32, u32, u32) = (30, 600, 30); // min, max, step
+pub const TILT_RANGE: (f32, f32, f32) = (0.25, 1.0, 0.05);
+pub const WINDING_RANGE: (f32, f32, f32) = (0.6, 3.0, 0.1);
+
+impl Appearance {
+    /// Brings values loaded from a hand-edited config back into range.
+    pub fn clamped(mut self) -> Self {
+        self.theme = self.theme.min(THEMES.len() - 1);
+        self.arms = self.arms.clamp(ARMS_RANGE.0, ARMS_RANGE.1);
+        self.turn_secs = self.turn_secs.clamp(TURN_SECS_RANGE.0, TURN_SECS_RANGE.1);
+        self.tilt = self.tilt.clamp(TILT_RANGE.0, TILT_RANGE.1);
+        self.winding = self.winding.clamp(WINDING_RANGE.0, WINDING_RANGE.1);
+        self
+    }
+}
+
+static CURRENT: RwLock<Appearance> = RwLock::new(DEFAULT);
+
+pub fn get() -> Appearance {
+    *CURRENT.read().unwrap_or_else(|e| e.into_inner())
+}
+
+pub fn set(appearance: Appearance) {
+    *CURRENT.write().unwrap_or_else(|e| e.into_inner()) = appearance.clamped();
+}
 
 pub fn theme() -> &'static Theme {
-    &THEMES[theme_index()]
-}
-
-pub fn theme_index() -> usize {
-    THEME.load(Ordering::Relaxed).min(THEMES.len() - 1)
-}
-
-pub fn galaxy() -> bool {
-    GALAXY.load(Ordering::Relaxed)
-}
-
-pub fn session_stars() -> bool {
-    SESSION_STARS.load(Ordering::Relaxed)
-}
-
-pub fn set(theme: usize, galaxy: bool, session_stars: bool) {
-    THEME.store(theme.min(THEMES.len() - 1), Ordering::Relaxed);
-    GALAXY.store(galaxy, Ordering::Relaxed);
-    SESSION_STARS.store(session_stars, Ordering::Relaxed);
+    &THEMES[get().theme]
 }
 
 pub fn theme_by_key(key: &str) -> Option<usize> {

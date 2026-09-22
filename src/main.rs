@@ -207,11 +207,7 @@ impl App {
                             Screen::Settings(settings) => match settings.handle_key(key) {
                                 SettingsAction::Stop => self.current_screen = Screen::Home(Home::default()),
                                 SettingsAction::Changed => {
-                                    Config::save_appearance(
-                                        appearance::theme().key,
-                                        appearance::galaxy(),
-                                        appearance::session_stars(),
-                                    ).expect("failed to save settings");
+                                    Config::save_appearance(&appearance::get()).expect("failed to save settings");
                                 }
                                 SettingsAction::None => {}
                             }
@@ -227,11 +223,7 @@ impl App {
 
 fn main() -> io::Result<()> {
     let cfg = config::Config::load();
-    appearance::set(
-        cfg.theme.as_deref().and_then(appearance::theme_by_key).unwrap_or(0),
-        cfg.galaxy,
-        cfg.session_stars,
-    );
+    appearance::set(cfg.appearance);
     let db_path = cfg.resolved_db_path();
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)?;

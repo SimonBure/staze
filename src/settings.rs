@@ -8,9 +8,27 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
-use crate::appearance::{self, THEMES};
+use crate::appearance::{self, Appearance, ARMS_RANGE, THEMES, TILT_RANGE, TURN_SECS_RANGE, WINDING_RANGE};
 
-const ROWS: usize = 3;
+#[derive(Clone, Copy, PartialEq)]
+enum Row {
+    Theme,
+    Galaxy,
+    SessionStars,
+    Arms,
+    Turn,
+    Tilt,
+    Winding,
+    Sparkle,
+    FieldStars,
+}
+
+const ROWS: [Row; 9] = [
+    Row::Theme, Row::Galaxy, Row::SessionStars,
+    Row::Arms, Row::Turn, Row::Tilt, Row::Winding, Row::Sparkle, Row::FieldStars,
+];
+/// Rows from here on tune the galaxy and sit under their own heading.
+const FIRST_GALAXY_ROW: usize = 3;
 
 pub struct Settings {
     selected: usize,
@@ -23,21 +41,46 @@ pub enum SettingsAction {
     Changed,
 }
 
+/// Steps `value` by `step` increments within `(min, max, inc)`, rounded to kill float drift.
+fn nudge(value: f32, step: isize, (min, max, inc): (f32, f32, f32)) -> f32 {
+    ((value + step as f32 * inc).clamp(min, max) * 100.0).round() / 100.0
+}
+
+fn format_turn(secs: u32) -> String {
+    match (secs / 60, secs % 60) {
+        (0, s) => format!("{s} s"),
+        (m, 0) => format!("{m} min"),
+        (m, s) => format!("{m} min {s} s"),
+    }
+}
+
 impl Settings {
     pub fn new() -> Self {
         Self { selected: 0 }
     }
 
-    /// `step` is +1/-1 for the theme; toggles ignore the direction.
+    /// `step` is +1/-1; toggles ignore the direction, lists wrap, ranges clamp.
     fn change(&mut self, step: isize) -> SettingsAction {
-        let (mut theme, mut galaxy, mut stars) =
-            (appearance::theme_index(), appearance::galaxy(), appearance::session_stars());
-        match self.selected {
-            0 => theme = (theme as isize + step).rem_euclid(THEMES.len() as isize) as usize,
-            1 => galaxy = !galaxy,
-            _ => stars = !stars,
+        let mut a = appearance::get();
+        match ROWS[self.selected] {
+            Row::Theme => a.theme = (a.theme as isize + step).rem_euclid(THEMES.len() as isize) as usize,
+            Row::Galaxy => a.galaxy = !a.galaxy,
+            Row::SessionStars => a.session_stars = !a.session_stars,
+            Row::Arms => {
+                let (min, max) = ARMS_RANGE;
+                let span = (max - min + 1) as isize;
+                a.arms = min + (a.arms as isize - min as isize + step).rem_euclid(span) as u8;
+            }
+            Row::Turn => {
+                let (min, max, inc) = TURN_SECS_RANGE;
+                a.turn_secs = (a.turn_secs as isize + step * inc as isize).clamp(min as isize, max as isize) as u32;
+            }
+            Row::Tilt => a.tilt = nudge(a.tilt, step, TILT_RANGE),
+            Row::Winding => a.winding = nudge(a.winding, step, WINDING_RANGE),
+            Row::Sparkle => a.sparkle = !a.sparkle,
+            Row::FieldStars => a.field_stars = !a.field_stars,
         }
-        appearance::set(theme, galaxy, stars);
+        appearance::set(a);
         SettingsAction::Changed
     }
 
@@ -48,7 +91,7 @@ impl Settings {
                 SettingsAction::None
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.selected = (self.selected + 1).min(ROWS - 1);
+                self.selected = (self.selected + 1).min(ROWS.len() - 1);
                 SettingsAction::None
             }
             KeyCode::Left | KeyCode::Char('h') => self.change(-1),
@@ -56,6 +99,21 @@ impl Settings {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => SettingsAction::Stop,
             _ => SettingsAction::None,
         }
+    }
+}
+
+fn row_text(row: Row, a: &Appearance) -> (&'static str, String) {
+    let on_off = |b: bool| format!("[ {} ]", if b { "on" } else { "off" });
+    match row {
+        Row::Theme => ("Theme", format!("< {} >", THEMES[a.theme].name)),
+        Row::Galaxy => ("Home galaxy", on_off(a.galaxy)),
+        Row::SessionStars => ("Session stars", on_off(a.session_stars)),
+        Row::Arms => ("Arms", format!("< {} >", a.arms)),
+        Row::Turn => ("One full turn", format!("< {} >", format_turn(a.turn_secs))),
+        Row::Tilt => ("Tilt", format!("< {:.0}% >", a.tilt * 100.0)),
+        Row::Winding => ("Arm winding", format!("< {:.1} >", a.winding)),
+        Row::Sparkle => ("Sparkle", on_off(a.sparkle)),
+        Row::FieldStars => ("Field stars", on_off(a.field_stars)),
     }
 }
 
@@ -78,27 +136,27 @@ impl Widget for &Settings {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let on_off = |b: bool| if b { "on" } else { "off" };
-        let rows = [
-            ("Theme", format!("< {} >", appearance::theme().name)),
-            ("Home galaxy", format!("[ {} ]", on_off(appearance::galaxy()))),
-            ("Session stars", format!("[ {} ]", on_off(appearance::session_stars()))),
-        ];
+        let a = appearance::get();
+        // Galaxy rows fade out when the galaxy is off, but stay editable
+        let faded = Style::new().fg(appearance::theme().stars[1]);
+
+        let mut lines: Vec<Line> = Vec::new();
+        for (i, row) in ROWS.iter().enumerate() {
+            if i == FIRST_GALAXY_ROW {
+                lines.push(Line::default());
+                lines.push(Line::from("─── Galaxy ───").bold());
+            }
+            let (label, value) = row_text(*row, &a);
+            let mut style = if i >= FIRST_GALAXY_ROW && !a.galaxy { faded } else { Style::new() };
+            if i == self.selected { style = style.reversed(); }
+            lines.push(Line::from(format!("{label:<16}{value:>18}")).style(style));
+        }
 
         let [_, list, _] = Layout::vertical([
             Constraint::Fill(1),
-            Constraint::Length(ROWS as u16 * 2 - 1),
+            Constraint::Length(lines.len() as u16),
             Constraint::Fill(1),
         ]).areas(inner);
-        for (i, (label, value)) in rows.iter().enumerate() {
-            let y = list.y + i as u16 * 2;
-            if y >= list.bottom() { break; }
-            let style = if i == self.selected { Style::new().reversed() } else { Style::new() };
-            let line = Line::from(vec![
-                format!("{label:<16}").into(),
-                format!("{value:>18}").into(),
-            ]).style(style);
-            Paragraph::new(line).centered().render(Rect { y, height: 1, ..list }, buf);
-        }
+        Paragraph::new(lines).centered().render(list, buf);
     }
 }

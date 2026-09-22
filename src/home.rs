@@ -35,7 +35,7 @@ impl Home {
         Self {
             selected: 0,
             can_undo,
-            galaxy: Galaxy,
+            galaxy: Galaxy::new(),
             stars: Starfield::new(FIELD_STAR_COUNT).without_meteors(),
         }
     }
@@ -114,9 +114,12 @@ impl Widget for &mut Home {
             .render(area, buf);
 
         // Last, so the sky only fills the cells left blank
-        if appearance::galaxy() {
+        let settings = appearance::get();
+        if settings.galaxy {
             self.galaxy.render(inner, buf);
-            self.stars.render(inner, buf);
+            if settings.field_stars {
+                self.stars.render(inner, buf);
+            }
         }
     }
 }

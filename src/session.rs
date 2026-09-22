@@ -197,7 +197,7 @@ impl StatefulWidget for &mut Session {
             .render(stop_area, buf);
 
         // Last, so stars only fill the cells left blank
-        if appearance::session_stars() {
+        if appearance::get().session_stars {
             self.stars.render(inner, buf);
         }
     }

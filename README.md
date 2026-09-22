@@ -73,6 +73,12 @@ db_path = "/custom/path/to/staze.db"
 theme = "dark-blue"      # dark-blue | dark-red | light-blue | light-red
 galaxy = true            # rotating galaxy on the home screen
 session_stars = true     # twinkling stars and shooting stars during a session
+galaxy_arms = 2          # 2–4
+galaxy_turn_secs = 240   # one full rotation, 30–600
+galaxy_tilt = 0.55       # 0.25 (edge-on) – 1.0 (face-on)
+galaxy_winding = 1.6     # how tightly the arms coil, 0.6–3.0
+galaxy_sparkle = true    # cells briefly brighten, like the session stars
+galaxy_field_stars = true
 ```
 
 ## License
