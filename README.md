@@ -3,7 +3,7 @@
 
 A terminal time tracker. Start sessions, label them, and review your time as a bar chart — all from the keyboard. 
 
-Cute bonus: you'll adopt **Staz**, a small creature that lives as your work.
+Your work happens under a starry sky: a slowly rotating galaxy on the home screen, twinkling stars and the odd shooting star while a session runs.
 
 <!-- Demo gif — render with `vhs demo.tape` (https://github.com/charmbracelet/vhs) -->
 ![staze demo](demo.gif)

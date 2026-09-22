@@ -2,7 +2,6 @@ use std::io;
 use std::time::{SystemTime, UNIX_EPOCH, Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
 use ratatui::{DefaultTerminal, Frame};
 
@@ -13,12 +12,10 @@ mod history;
 mod db;
 mod tags;
 mod label_input;
-mod staz;
 mod starfield;
 mod galaxy;
 mod export;
 
-use staz::{Mood, Staz};
 
 use db::{Db, SessionFilter};
 struct LastSession {
@@ -39,35 +36,6 @@ fn since_days(days: u64) -> i64 {
     cutoff.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64
 }
 
-/// Width/height (in cells) of multi-line ascii art.
-fn art_size(art: &str) -> (u16, u16) {
-    let h = art.lines().count() as u16;
-    let w = art.lines().map(|l| l.chars().count()).max().unwrap_or(0) as u16;
-    (w, h)
-}
-
-/// A `Rect` the size of `art`, centered within `area`.
-fn centered(area: Rect, art: &str) -> Rect {
-    let (w, h) = art_size(art);
-    let (w, h) = (w.min(area.width), h.min(area.height));
-    Rect { x: area.x + (area.width - w) / 2, y: area.y + (area.height - h) / 2, width: w, height: h }
-}
-
-/// A `Rect` the size of `art`, anchored to the bottom-left of `area`, inset by a
-/// little padding so Staz doesn't draw over the screen's border lines.
-fn bottom_left(area: Rect, art: &str) -> Rect {
-    const PAD_LEFT: u16 = 2;
-    const PAD_BOTTOM: u16 = 1;
-    let (w, h) = art_size(art);
-    let (w, h) = (w.min(area.width), h.min(area.height));
-    Rect {
-        x: area.x + PAD_LEFT,
-        y: area.bottom().saturating_sub(h + PAD_BOTTOM),
-        width: w,
-        height: h,
-    }
-}
-
 enum Screen {
     Home(Home),
     Session(Session),
@@ -86,7 +54,6 @@ pub struct App {
     current_screen: Screen,
     db: Db,
     last_session: Option<LastSession>,
-    staz: Staz,
 }
 
 impl App {
@@ -95,7 +62,7 @@ impl App {
         let mut next_frame = Instant::now();
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
-            // Staz only animates on Home/Session; on other screens block until
+            // The sky only animates on Home/Session; on other screens block until
             // the next key so the app sits at ~0% CPU when idle.
             let animated = matches!(self.current_screen, Screen::Home(_) | Screen::Session(_));
             let timeout = if animated {
@@ -114,23 +81,12 @@ impl App {
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        self.staz.tick();
         let area = frame.area();
         match &mut self.current_screen {
             Screen::Home(home) => frame.render_widget(home, area),
             Screen::Session(session) => frame.render_stateful_widget(session, area, &mut ListState::default()),
             Screen::History(history) => frame.render_stateful_widget(history, area, &mut ListState::default()),
             Screen::Tags(tags) => frame.render_stateful_widget(tags, area, &mut ListState::default()),
-        }
-
-        // Staz overlay: centered on Home, bottom-left in Session, hidden elsewhere.
-        let spot = match &self.current_screen {
-            Screen::Home(_) => Some(centered(area, self.staz.frame())),
-            Screen::Session(_) => Some(bottom_left(area, self.staz.frame())),
-            _ => None,
-        };
-        if let Some(spot) = spot {
-            self.staz.render(spot, frame.buffer_mut());
         }
     }
 
@@ -154,7 +110,6 @@ impl App {
                                 HomeAction::StartSession => {
                                     self.last_session = None;
                                     self.current_screen = Screen::Session(Session::new());
-                                    self.staz.set(Mood::Working);
                                 },
                                 HomeAction::UndoLastSession => {
                                     if let Some(ls) = self.last_session.take() {
@@ -168,7 +123,6 @@ impl App {
                                         self.current_screen = Screen::Session(
                                             Session::resume(ls.started_at, ls.duration_sec, ls.label)
                                         );
-                                        self.staz.set(Mood::Working);
                                     }
                                 },
                                 HomeAction::ViewHistory => {
@@ -192,7 +146,6 @@ impl App {
                                     let id = self.db.save_session(started_at, duration_sec, label.clone()).expect("failed to save session");
                                     self.last_session = Some(LastSession { id, started_at, duration_sec, label });
                                     self.current_screen = Screen::Home(Home::new(true));
-                                    self.staz.set(Mood::Celebrating);
                                 }
                                 SessionAction::None => {}
                             },
@@ -261,8 +214,7 @@ fn main() -> io::Result<()> {
         exit: false,
         current_screen: Screen::default(),
         db,
-        last_session: None,
-        staz: Staz::new()
+        last_session: None
     }
     .run(terminal))
 }
