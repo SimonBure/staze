@@ -7,6 +7,14 @@ on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
+  # Re-render by hand from the Actions tab (no commit, GIF is uploaded as an artifact)
+  workflow_dispatch:
+  # Preview the GIF on PRs that touch the demo itself (no commit)
+  pull_request:
+    paths:
+      - demo.tape
+      - fixtures/**
+      - .github/workflows/demo.yml
 
 jobs:
   regenerate:
@@ -14,7 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          # Tag pushes render main and commit to it; other runs render the triggering ref
+          ref: ${{ github.event_name == 'push' && 'main' || '' }}
 
       - name: Build staze
         run: |
@@ -23,6 +32,15 @@ jobs:
 
       - name: Install vhs
         uses: charmbracelet/vhs-action@v2
+        with:
+          # vhs v0.12.0 exits without writing the GIF (and without an error): keep 0.11 until that's fixed
+          version: v0.11.0
+
+      - name: Tool versions
+        run: |
+          vhs --version
+          ttyd --version
+          ffmpeg -version | head -1
 
       - name: Seed fixture DB
         run: |
@@ -33,10 +51,29 @@ jobs:
           echo "db_path = \"$DEMO_DB\"" > "$HOME/.config/staze/config.toml"
 
       - name: Render demo.gif
-        run: vhs demo.tape
+        run: |
+          # Start from nothing, so a render that writes no file can't pass as "unchanged"
+          rm -f demo.gif
+          vhs demo.tape
+          ls -la demo.gif || echo "::warning::vhs did not write demo.gif"
+
+      - name: Upload rendered GIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-gif-run-${{ github.run_number }}
+          path: demo.gif
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Commit demo.gif if changed
+        if: github.event_name == 'push'
         run: |
+          # Never commit a deleted or empty GIF from a failed render
+          if [ ! -s demo.gif ]; then
+            echo "::error::No demo.gif was rendered, keeping the committed one"
+            exit 1
+          fi
           if git diff --quiet -- demo.gif; then
             echo "demo.gif unchanged, nothing to commit"
             exit 0
