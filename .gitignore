@@ -28,6 +28,8 @@ target
 # Local database
 *.db
 
+ascii/refs/
+
 CLAUDE.md
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
