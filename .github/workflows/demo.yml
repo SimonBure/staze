@@ -19,6 +19,12 @@ on:
 jobs:
   regenerate:
     runs-on: ubuntu-latest
+    # TEMP diagnostic matrix: which of vhs / ffmpeg broke the render?
+    strategy:
+      fail-fast: false
+      matrix:
+        vhs: [v0.11.0, v0.12.0]
+        ffmpeg: [nightly, apt]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -32,6 +38,14 @@ jobs:
 
       - name: Install vhs
         uses: charmbracelet/vhs-action@v2
+        with:
+          version: ${{ matrix.vhs }}
+
+      - name: Use Ubuntu's stable ffmpeg
+        if: matrix.ffmpeg == 'apt'
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          echo "/usr/bin" >> "$GITHUB_PATH"
 
       - name: Tool versions
         run: |
@@ -58,7 +72,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: demo-gif-run-${{ github.run_number }}
+          name: demo-gif-run-${{ github.run_number }}-${{ matrix.vhs }}-${{ matrix.ffmpeg }}
           path: demo.gif
           if-no-files-found: warn
           retention-days: 14
