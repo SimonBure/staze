@@ -8,10 +8,15 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
-#[derive(Debug, Default)]
+use crate::galaxy::{Galaxy, FIELD_STAR_COUNT};
+use crate::starfield::Starfield;
+
+#[derive(Debug)]
 pub struct Home {
     selected: u8,
     can_undo: bool,
+    galaxy: Galaxy,
+    stars: Starfield,
 }
 
 pub enum HomeAction {
@@ -25,7 +30,18 @@ pub enum HomeAction {
 
 impl Home {
     pub fn new(can_undo: bool) -> Self {
-        Self { selected: 0, can_undo }
+        Self {
+            selected: 0,
+            can_undo,
+            galaxy: Galaxy,
+            stars: Starfield::new(FIELD_STAR_COUNT).without_meteors(),
+        }
+    }
+}
+
+impl Default for Home {
+    fn default() -> Self {
+        Self::new(false)
     }
 }
 
@@ -81,6 +97,7 @@ impl Widget for &mut Home {
             " [ Manage Tags ] ".set_style(tags_style),
         ]);
 
+        let inner = block.inner(area);
         let mut lines = vec![buttons];
         if self.can_undo {
             lines.push(Line::from("Press U to undo  ·  Press R to resume").centered().dark_gray());
@@ -89,5 +106,9 @@ impl Widget for &mut Home {
             .centered()
             .block(block)
             .render(area, buf);
+
+        // Last, so the sky only fills the cells left blank
+        self.galaxy.render(inner, buf);
+        self.stars.render(inner, buf);
     }
 }

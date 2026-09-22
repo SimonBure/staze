@@ -50,10 +50,11 @@ pub struct Starfield {
     stars: Vec<Star>,
     born: Instant,
     seed: u64,
+    meteors: bool,
 }
 
 /// Minimal xorshift, enough to scatter stars without pulling in `rand`.
-struct Rng(u64);
+pub(crate) struct Rng(pub(crate) u64);
 
 impl Rng {
     fn seeded() -> Self {
@@ -61,7 +62,7 @@ impl Rng {
         Self(nanos | 1)
     }
 
-    fn next_f32(&mut self) -> f32 {
+    pub(crate) fn next_f32(&mut self) -> f32 {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 7;
         self.0 ^= self.0 << 17;
@@ -82,7 +83,12 @@ impl Starfield {
                 rest: rng.next_f32() < 0.5,
             })
             .collect();
-        Self { stars, born: Instant::now(), seed: rng.0 }
+        Self { stars, born: Instant::now(), seed: rng.0, meteors: true }
+    }
+
+    pub fn without_meteors(mut self) -> Self {
+        self.meteors = false;
+        self
     }
 
     /// Head position and tail length of the shooting star visible at `frame`, if any.
@@ -109,7 +115,7 @@ fn splitmix(mut z: u64) -> u64 {
 }
 
 /// Sets `ch` at (x, y) relative to `area` if that cell is inside and blank.
-fn put(buf: &mut Buffer, area: Rect, x: i32, y: i32, ch: char, style: Style) {
+pub(crate) fn put(buf: &mut Buffer, area: Rect, x: i32, y: i32, ch: char, style: Style) {
     if x < 0 || y < 0 || x >= area.width as i32 || y >= area.height as i32 { return; }
     if let Some(cell) = buf.cell_mut((area.x + x as u16, area.y + y as u16))
         && cell.symbol() == " " {
@@ -143,7 +149,7 @@ impl Widget for &Starfield {
             put(buf, area, x, y, STAR_CYCLE[step], style);
         }
 
-        if let Some((x, y, len)) = self.meteor(frame_n, area) {
+        if let Some((x, y, len)) = self.meteor(frame_n, area).filter(|_| self.meteors) {
             for i in 1..=len {
                 let (ch, color) = if i == len { METEOR_TAIL_END } else { METEOR_TAIL };
                 put(buf, area, x + i, y - i, ch, Style::new().fg(color));
