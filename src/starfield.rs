@@ -11,7 +11,7 @@ use ratatui::{
 
 /// Number of stars on the session screen.
 /// Kept as a constant so it can later become a function of hours worked.
-pub const STAR_COUNT: usize = 14;
+pub const STAR_COUNT: usize = 45;
 
 const FRAME_MS: u128 = 100; // matches the app's 10 fps frame budget
 const STAR_CYCLE: [char; 6] = [' ', '.', '+', '*', '+', '.'];
