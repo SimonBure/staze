@@ -3,7 +3,7 @@
 
 A terminal time tracker. Start sessions, label them, and review your time as a bar chart — all from the keyboard. 
 
-Cute bonus: you'll adpot **Staz**, a small creature that lives as your work.
+Cute bonus: you'll adopt **Staz**, a small creature that lives as your work.
 
 <!-- Demo gif — render with `vhs demo.tape` (https://github.com/charmbracelet/vhs) -->
 ![staze demo](demo.gif)
@@ -46,9 +46,19 @@ staze
 | `←` `→` / `h` `l` | Navigate menu |
 | `↑` `↓` / `k` `j` | Navigate list |
 | `Enter` | Select |
-| `Q` | Quit / back |
+| `/` | Search / edit label |
+| `Esc` | Cancel / clear filter / back |
+| `Q` | Quit |
 
-Vim-style `h` `j` `k` `l` work as aliases for the arrow keys everywhere.
+Vim-style `h` `j` `k` `l` work as aliases for the arrow keys, except while typing a label (use the arrows to pick a suggestion).
+
+### Labels
+
+Label input works the same on every screen: type to get autocomplete suggestions from your existing labels, `↑` `↓` to pick one, `Enter` to confirm, `Esc` to cancel.
+
+- **Session** — `/` (or `Enter` on the label) to label the running session.
+- **History** — `/` (or `Enter` on the label row) to filter the chart by label; the chart updates once you confirm. `Esc` clears the filter. `E` exports all sessions to CSV.
+- **Tags** — `/` to jump to a tag, `Enter` to rename it (renaming onto an existing tag merges them), `D` to delete it.
 
 Sessions are stored in `~/.local/share/staze/staze.db`.
 
