@@ -8,10 +8,16 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
-#[derive(Debug, Default)]
+use crate::appearance;
+use crate::galaxy::{Galaxy, FIELD_STAR_COUNT};
+use crate::starfield::Starfield;
+
+#[derive(Debug)]
 pub struct Home {
     selected: u8,
     can_undo: bool,
+    galaxy: Galaxy,
+    stars: Starfield,
 }
 
 pub enum HomeAction {
@@ -19,13 +25,25 @@ pub enum HomeAction {
     StartSession,
     ViewHistory,
     ViewTags,
+    ViewSettings,
     UndoLastSession,
     ResumeLastSession,
 }
 
 impl Home {
     pub fn new(can_undo: bool) -> Self {
-        Self { selected: 0, can_undo }
+        Self {
+            selected: 0,
+            can_undo,
+            galaxy: Galaxy::default(),
+            stars: Starfield::new(FIELD_STAR_COUNT).without_meteors(),
+        }
+    }
+}
+
+impl Default for Home {
+    fn default() -> Self {
+        Self::new(false)
     }
 }
 
@@ -37,13 +55,14 @@ impl Home {
                 HomeAction::None
             }
             KeyCode::Right | KeyCode::Char('l')=> {
-                self.selected = (self.selected + 1).min(2);
+                self.selected = (self.selected + 1).min(3);
                 HomeAction::None
             }
             KeyCode::Enter => match self.selected {
                 0 => HomeAction::StartSession,
                 1 => HomeAction::ViewHistory,
-                _ => HomeAction::ViewTags,
+                2 => HomeAction::ViewTags,
+                _ => HomeAction::ViewSettings,
             },
             KeyCode::Char('u') | KeyCode::Char('U') if self.can_undo => HomeAction::UndoLastSession,
             KeyCode::Char('r') | KeyCode::Char('R') if self.can_undo => HomeAction::ResumeLastSession,
@@ -72,6 +91,7 @@ impl Widget for &mut Home {
         let start_style = if self.selected == 0 { Style::new().reversed() } else { Style::new() };
         let stats_style = if self.selected == 1 { Style::new().reversed() } else { Style::new() };
         let tags_style  = if self.selected == 2 { Style::new().reversed() } else { Style::new() };
+        let settings_style = if self.selected == 3 { Style::new().reversed() } else { Style::new() };
 
         let buttons = Line::from(vec![
             " [ Start Session ] ".set_style(start_style),
@@ -79,15 +99,36 @@ impl Widget for &mut Home {
             " [ View History ] ".set_style(stats_style),
             "   ".into(),
             " [ Manage Tags ] ".set_style(tags_style),
+            "   ".into(),
+            " [ Settings ] ".set_style(settings_style),
         ]);
 
+        let inner = block.inner(area);
         let mut lines = vec![buttons];
         if self.can_undo {
             lines.push(Line::from("Press U to undo  ·  Press R to resume").centered().dark_gray());
         }
+        let text_rows = lines.len() as u16;
         Paragraph::new(lines)
             .centered()
             .block(block)
             .render(area, buf);
+
+        // Last, so the sky only fills the cells left blank
+        let settings = appearance::get();
+        if settings.galaxy {
+            // Centred in the space below the menu, with a margin so it never touches text or borders
+            let (mx, my) = (2, 1);
+            let sky = Rect {
+                x: inner.x + mx,
+                y: inner.y + text_rows + my,
+                width: inner.width.saturating_sub(2 * mx),
+                height: inner.height.saturating_sub(text_rows + 2 * my),
+            };
+            self.galaxy.render(sky, buf);
+            if settings.field_stars {
+                self.stars.render(inner, buf);
+            }
+        }
     }
 }

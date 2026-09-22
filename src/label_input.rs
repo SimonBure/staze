@@ -8,6 +8,8 @@ use ratatui::{
     widgets::{Block, Clear, List, ListItem, ListState, StatefulWidget, Widget},
 };
 
+use crate::appearance;
+
 const MAX_VISIBLE: usize = 5;
 
 /// Label text input with DB-backed autocomplete, shared by the session, history and tags screens.
@@ -135,7 +137,9 @@ impl LabelInput {
         let list = List::new(items)
             .highlight_style(Style::new().reversed())
             .block(Block::bordered().title(title.to_string()));
+        let theme = appearance::theme();
         Clear.render(rect, buf);
+        buf.set_style(rect, Style::new().bg(theme.bg).fg(theme.fg));
         StatefulWidget::render(list, rect, buf, &mut self.state);
     }
 }

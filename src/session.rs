@@ -12,7 +12,9 @@ use ratatui::{
 };
 use tui_big_text::{BigText, PixelSize};
 
+use crate::appearance;
 use crate::label_input::{InputEvent, LabelInput};
+use crate::starfield::{Starfield, STAR_COUNT};
 
 #[derive(Debug)]
 pub struct Session {
@@ -21,6 +23,7 @@ pub struct Session {
     start: Instant,
     started_at: u64,
     input: LabelInput,
+    stars: Starfield,
 }
 
 pub enum SessionAction {
@@ -40,6 +43,7 @@ impl Session {
                 .unwrap()
                 .as_secs(),
             input: LabelInput::default(),
+            stars: Starfield::new(STAR_COUNT),
         }
     }
 
@@ -50,6 +54,7 @@ impl Session {
             start: Instant::now() - Duration::from_secs(elapsed_secs),
             started_at,
             input: LabelInput::default(),
+            stars: Starfield::new(STAR_COUNT),
         }
     }
 
@@ -155,12 +160,13 @@ impl StatefulWidget for &mut Session {
         ]).areas(inner);
         
         // Timer
-        Paragraph::new(Line::from("● session in progress".green()))
+        let timer_color = appearance::theme().timer;
+        Paragraph::new(Line::from("● session in progress".fg(timer_color)))
             .centered()
             .render(running_area, buf);
         BigText::builder()
             .pixel_size(PixelSize::HalfHeight)
-            .lines(vec![Line::from(self.elapsed_display().green().bold())])
+            .lines(vec![Line::from(self.elapsed_display().fg(timer_color).bold())])
             .centered()
             .build()
             .render(timer_display_area, buf);
@@ -189,5 +195,10 @@ impl StatefulWidget for &mut Session {
         Paragraph::new(Line::from(" [ Stop ] ".set_style(stop_style)))
             .centered()
             .render(stop_area, buf);
+
+        // Last, so stars only fill the cells left blank
+        if appearance::get().session_stars {
+            self.stars.render(inner, buf);
+        }
     }
 }

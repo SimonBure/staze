@@ -1,5 +1,5 @@
 # staze demo tape — render with: vhs demo.tape
-# Produces demo.gif (Staz bouncing in the terminal for a few seconds).
+# Produces demo.gif (the home galaxy, a session starfield, then history).
 
 Output demo.gif
 
@@ -14,7 +14,7 @@ Type "staze"
 Sleep 800ms
 Enter
 
-# let Staz bounce around for a few seconds
+# let the galaxy turn for a few seconds
 Sleep 6s
 
 Enter
