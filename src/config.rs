@@ -64,11 +64,12 @@ impl Config {
     }
 
     pub fn resolved_staze_path(&self) -> PathBuf {
-        self.db_path.clone().unwrap_or_else(|| {
-            dirs::data_dir()
+        match self.db_path.as_ref().and_then(|p| p.parent()) {
+            Some(dir) => dir.to_path_buf(),
+            None => dirs::data_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
-                .join("staze")
-        })
+                .join("staze"),
+        }
     }
 
     pub fn resolved_db_path(&self) -> PathBuf {
@@ -79,9 +80,35 @@ impl Config {
     }    
     
     pub fn resolved_csv_path(&self) -> PathBuf {
-        self.db_path.clone().unwrap_or_else(|| {
-            self.resolved_staze_path()
-                .join("sessions.csv")
-        })
+        self.resolved_staze_path().join("sessions.csv")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cfg(db_path: Option<&str>) -> Config {
+        Config { db_path: db_path.map(PathBuf::from), appearance: Appearance::default() }
+    }
+
+    #[test]
+    fn custom_db_path_puts_staze_dir_and_csv_next_to_db() {
+        let c = cfg(Some("/x/perso.db"));
+        assert_eq!(c.resolved_staze_path(), PathBuf::from("/x"));
+        assert_eq!(c.resolved_csv_path(), PathBuf::from("/x/sessions.csv"));
+    }
+
+    #[test]
+    fn custom_db_path_is_used_as_is() {
+        assert_eq!(cfg(Some("/x/perso.db")).resolved_db_path(), PathBuf::from("/x/perso.db"));
+    }
+
+    #[test]
+    fn default_db_and_csv_share_the_staze_dir() {
+        let c = cfg(None);
+        let dir = dirs::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("staze");
+        assert_eq!(c.resolved_db_path(), dir.join("staze.db"));
+        assert_eq!(c.resolved_csv_path(), dir.join("sessions.csv"));
     }
 }
